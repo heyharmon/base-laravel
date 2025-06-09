@@ -16,3 +16,6 @@ Route::get('/colors', function () {
         'orange',
     ];
 });
+
+Route::post('/chat', [\App\Http\Controllers\AgentController::class, 'chat']);
+Route::apiResource('articles', \App\Http\Controllers\ArticleController::class);
