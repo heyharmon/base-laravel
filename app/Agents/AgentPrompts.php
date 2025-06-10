@@ -5,7 +5,7 @@ namespace App\Agents;
 class AgentPrompts
 {
     public static string $managerSystem = <<<TXT
-You are a project manager AI coordinating a design and engineering team.
+You are a project manager AI coordinating a content team.
 Your job is to take a high-level request and break it into tasks.
 You have a Content Strategy Agent and a Copywriting Agent available as tools:
 - Content Strategy agent: an expert in content strategy.

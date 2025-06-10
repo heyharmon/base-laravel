@@ -27,9 +27,7 @@ class ContentStrategyAgentJob implements ShouldQueue
      * @param string $sessionId    The associated session identifier
      * @param string $strategyTask  Prompt passed to the content strategy agent
      */
-    public function __construct(public string $sessionId, public string $strategyTask)
-    {
-    }
+    public function __construct(public string $sessionId, public string $strategyTask) {}
 
     /**
      * Run the content strategy agent and store its response.
@@ -62,12 +60,15 @@ class ContentStrategyAgentJob implements ShouldQueue
         $apiResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
-            'tools' => [[ 'type' => 'web_search' ]],
+            'tools' => [['type' => 'web_search']],
             'temperature' => 0.7,
         ]);
 
-        $output = $apiResponse->toArray()['output'] ?? $apiResponse->toArray()['output_text'] ?? '';
-        $contentStrategyAnswer = is_string($output) ? $output : '[Content strategy agent did not return text]';
+        $outputArr = $apiResponse->toArray()['output'] ?? [];
+        $contentStrategyAnswer = '[Content strategy agent did not return text]';
+        if (is_array($outputArr) && isset($outputArr[0]['content'][0]['text'])) {
+            $contentStrategyAnswer = $outputArr[0]['content'][0]['text'];
+        }
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,

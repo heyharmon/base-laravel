@@ -2,14 +2,15 @@
 
 namespace App\Jobs;
 
-use App\Agents\AgentPrompts;
-use App\Models\AgentMessage;
-use Illuminate\Bus\Batchable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use OpenAI\Laravel\Facades\OpenAI;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Bus\Batchable;
+use App\Models\AgentMessage;
+use App\Agents\AgentPrompts;
 
 /**
  * Coordinator job that manages the overall multi-agent workflow.
@@ -28,9 +29,7 @@ class ManagerAgentStepJob implements ShouldQueue
      * @param string      $sessionId   Session identifier for message grouping
      * @param string|null $userRequest Optional prompt used on the first step
      */
-    public function __construct(public string $sessionId, public ?string $userRequest = null)
-    {
-    }
+    public function __construct(public string $sessionId, public ?string $userRequest = null) {}
 
     /**
      * Execute one step of the manager agent.
@@ -97,12 +96,15 @@ class ManagerAgentStepJob implements ShouldQueue
             'tools' => $tools,
             'temperature' => 0.7,
         ]);
+        Log::info('Manager Agent - API Response: ' . json_encode($apiResponse));
 
-        $items = $apiResponse->toArray()['items'] ?? [];
+        $items = $apiResponse->toArray()['output'] ?? [];
+        Log::info('Manager Agent - Items: ' . json_encode($items));
+
         $shouldContinue = false;
         foreach ($items as $item) {
             if ($item['type'] === 'message') {
-                $content = $item['message']['content'] ?? '';
+                $content = $item['content'] ?? '';
                 AgentMessage::create([
                     'session_id' => $this->sessionId,
                     'agent_name' => $managerName,
@@ -111,8 +113,8 @@ class ManagerAgentStepJob implements ShouldQueue
                 ]);
             }
             if ($item['type'] === 'function_call') {
-                $funcName = $item['function_call']['name'];
-                $funcArgs = $item['function_call']['arguments'] ?? [];
+                $funcName = $item['name'];
+                $funcArgs = json_decode($item['arguments'], true);
                 AgentMessage::create([
                     'session_id' => $this->sessionId,
                     'agent_name' => $managerName,
