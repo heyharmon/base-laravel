@@ -1,29 +1,14 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Jobs\RunAgent;
-use App\Models\AgentMemory;
+use App\Http\Controllers\MultiAgentController;
 
-Route::get('/conversation', function () {
-    $memories = AgentMemory::all();
-
-    return view('conversation', compact('memories'));
+Route::get('/', function () {
+    return view('chat');
 });
 
-
-Route::get('/start-collaboration', function () {
-    // Clear previous memory
-    AgentMemory::truncate();
-
-    // Kick off with Product Manager
-    dispatch(new RunAgent(
-        'manager',
-        config('agents.roles')['manager'],
-        'Write a tweet about SpaceX'
-    ));
-
-    return redirect('/conversation');
-});
+Route::post('/start-session', [MultiAgentController::class, 'startSession'])->name('start-session');
+Route::get('/view-session/{id}', [MultiAgentController::class, 'viewSession'])->name('view-session');
 
 Route::get('/{any?}', function () {
     return view('app');
