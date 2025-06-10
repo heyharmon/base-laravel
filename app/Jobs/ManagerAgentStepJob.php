@@ -26,10 +26,13 @@ class ManagerAgentStepJob implements ShouldQueue
     public $timeout = 30;
 
     /**
-     * @param string      $sessionId   Session identifier for message grouping
-     * @param string|null $userRequest Optional prompt used on the first step
+     * @param string $sessionId   Session identifier for message grouping
+     * @param string|null $userRequest The initial task the user wants the AI team to handle
      */
-    public function __construct(public string $sessionId, public ?string $userRequest = null) {}
+    public function __construct(
+        public string $sessionId,
+        public ?string $userRequest = null
+    ) {}
 
     /**
      * Execute one step of the manager agent.
@@ -46,7 +49,8 @@ class ManagerAgentStepJob implements ShouldQueue
 
         $managerName = 'Manager';
 
-        if ($this->userRequest !== null) {
+        // 1. If user request, initialize conversation with system prompt and user request for Manager
+        if ($this->userRequest) {
             AgentMessage::create([
                 'session_id' => $this->sessionId,
                 'agent_name' => $managerName,
@@ -61,8 +65,11 @@ class ManagerAgentStepJob implements ShouldQueue
             ]);
         }
 
+        // 2. Define available tools (sub-agents and optional webs search) for the Manager Agent
         $tools = [
-            ['type' => 'web_search'],
+            [
+                'type' => 'web_search'
+            ],
             [
                 'type' => 'function',
                 'name' => 'call_content_strategy_agent',
@@ -89,32 +96,48 @@ class ManagerAgentStepJob implements ShouldQueue
             ],
         ];
 
+        // 3. Invoke Manager Agent
+        // Assemble message hidtory for Manager agent
         $messages = $this->buildMessagesArray($managerName);
+
+        // Call OpenAI Responses API for the Manager agents next response
         $apiResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
             'tools' => $tools,
             'temperature' => 0.7,
+            // 'max_tokens' => 1000,
         ]);
         Log::info('Manager Agent - API Response: ' . json_encode($apiResponse));
 
+        // The response may contain a message or a function call (or both)
+        // (We assume the OpenAI PHP client returns a structured response; we convert to array for easier handleing)
         $items = $apiResponse->toArray()['output'] ?? [];
-        Log::info('Manager Agent - Items: ' . json_encode($items));
+        // Log::info('Manager Agent - Items: ' . json_encode($items));
 
         $shouldContinue = false;
         foreach ($items as $item) {
             if ($item['type'] === 'message') {
+                // Model produced a direct message (potential final answer)
                 $content = $item['content'] ?? '';
+                // Store the message
                 AgentMessage::create([
                     'session_id' => $this->sessionId,
                     'agent_name' => $managerName,
                     'role' => 'assistant',
                     'content' => $content,
                 ]);
+
+                // If we got a message with no function call, assume conversation might be done
+                // (In compled flows, you might check if the Manager indicates completion explicitely.)
+                $shouldContinue = false;
             }
+
             if ($item['type'] === 'function_call') {
+                // Model wants to use a tool (calls a sub-agent)
                 $funcName = $item['name'];
                 $funcArgs = json_decode($item['arguments'], true);
+                // Store the function call request
                 AgentMessage::create([
                     'session_id' => $this->sessionId,
                     'agent_name' => $managerName,
@@ -123,6 +146,7 @@ class ManagerAgentStepJob implements ShouldQueue
                     'function_args' => $funcArgs,
                 ]);
 
+                // Execute the appropriate sub-agent based on the function name
                 if ($funcName === 'call_content_strategy_agent') {
                     $strategyQuery = $funcArgs['input'] ?? '';
                     $this->batch()?->add(new ContentStrategyAgentJob($this->sessionId, $strategyQuery));
@@ -131,9 +155,11 @@ class ManagerAgentStepJob implements ShouldQueue
                     $copywritingQuery = $funcArgs['input'] ?? '';
                     $this->batch()?->add(new CopywritingAgentJob($this->sessionId, $copywritingQuery));
                 }
+
+                // After executing a tool, loop will continue and Manager will incorporate the new info in the next iteration.
                 $shouldContinue = true;
             }
-        }
+        } // end foreach item loop
 
         if ($shouldContinue) {
             $this->batch()?->add(new ManagerAgentStepJob($this->sessionId));
@@ -148,6 +174,7 @@ class ManagerAgentStepJob implements ShouldQueue
      */
     private function buildMessagesArray(string $agentName): array
     {
+        // Fetch all messages for this agent in current session
         $messages = [];
         $history = AgentMessage::where('session_id', $this->sessionId)
             ->where('agent_name', $agentName)

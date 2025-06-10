@@ -69,6 +69,8 @@ class ContentStrategyAgentJob implements ShouldQueue
         if (is_array($outputArr) && isset($outputArr[0]['content'][0]['text'])) {
             $contentStrategyAnswer = $outputArr[0]['content'][0]['text'];
         }
+
+        // Add the sub-agent's answer as assistant result back to Manager's conversation
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
