@@ -15,8 +15,10 @@ const sendMessage = async () => {
   loading.value = true;
   try {
     const response = await api.post('/chat', { messages: messages.value });
-    const reply = response.choices[0].message;
-    messages.value.push(reply);
+    if (response.choices && response.choices[0] && response.choices[0].message) {
+      const reply = response.choices[0].message;
+      messages.value.push(reply);
+    }
   } catch (e) {
     console.error(e);
   } finally {

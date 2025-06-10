@@ -12,13 +12,13 @@ class AgentController extends Controller
     {
         $messages = $request->input('messages', []);
 
-        $response = OpenAI::chat()->create([
+        $response = OpenAI::responses()->create([
             'model' => 'gpt-4o',
-            'messages' => $messages,
+            'input' => $messages,
             'tools' => [
-                ['type' => 'web_search'],
                 [
                     'type' => 'function',
+                    'name' => 'store_article',
                     'function' => [
                         'name' => 'store_article',
                         'description' => 'Store a blog article',
@@ -34,6 +34,7 @@ class AgentController extends Controller
                 ],
                 [
                     'type' => 'function',
+                    'name' => 'update_article',
                     'function' => [
                         'name' => 'update_article',
                         'description' => 'Update an existing blog article',
@@ -50,6 +51,7 @@ class AgentController extends Controller
                 ],
                 [
                     'type' => 'function',
+                    'name' => 'fetch_article',
                     'function' => [
                         'name' => 'fetch_article',
                         'description' => 'Fetch an article by id',
@@ -67,8 +69,8 @@ class AgentController extends Controller
         ]);
 
         $toolResponses = [];
-        if (!empty($response->choices[0]->message->toolCalls)) {
-            foreach ($response->choices[0]->message->toolCalls as $call) {
+        if (!empty($response->content->tool_calls)) {
+            foreach ($response->content->tool_calls as $call) {
                 $data = json_decode($call->function->arguments, true);
 
                 switch ($call->function->name) {
@@ -103,15 +105,31 @@ class AgentController extends Controller
                 }
             }
 
-            $messages[] = $response->choices[0]->message->toArray();
+            $messages[] = [
+                'role' => 'assistant',
+                'content' => $response->content->text,
+                'tool_calls' => $response->content->tool_calls
+            ];
             $messages = array_merge($messages, $toolResponses);
 
-            $response = OpenAI::chat()->create([
+            $response = OpenAI::responses()->create([
                 'model' => 'gpt-4o',
-                'messages' => $messages,
+                'input' => $messages,
             ]);
         }
 
-        return response()->json($response->toArray());
+        // Format the response to match what the frontend expects
+        $formattedResponse = [
+            'choices' => [
+                [
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => $response->content->text ?? ''
+                    ]
+                ]
+            ]
+        ];
+
+        return response()->json($formattedResponse);
     }
 }
