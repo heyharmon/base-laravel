@@ -1,26 +1,47 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import api from '@/services/api';
-import DefaultLayout from '@/layouts/DefaultLayout.vue';
 import Button from '@/components/ui/Button.vue';
 import Input from '@/components/ui/Input.vue';
+import DefaultLayout from '@/layouts/DefaultLayout.vue';
 
 const colors = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const search = ref('');
+const chats = ref([]);
+const chatMessage = ref('');
+const sending = ref(false);
 
-onMounted(async () => {
+  onMounted(async () => {
   try {
     loading.value = true;
     colors.value = await api.get('/colors');
+    chats.value = await api.get('/chats');
   } catch (err) {
     error.value = 'Failed to load colors';
     console.error(err);
   } finally {
     loading.value = false;
   }
-});
+  });
+
+const sendChat = async () => {
+  if (!chatMessage.value.trim()) {
+    return;
+  }
+  try {
+    sending.value = true;
+    const { reply } = await api.post('/chats', { message: chatMessage.value });
+    chats.value.push({ role: 'user', content: chatMessage.value });
+    chats.value.push({ role: 'assistant', content: reply });
+    chatMessage.value = '';
+  } catch (err) {
+    console.error(err);
+  } finally {
+    sending.value = false;
+  }
+};
 </script>
 
 <template>
@@ -48,6 +69,21 @@ onMounted(async () => {
         <div class="mt-8">
             <p>Searching: {{ search }}</p>
             <Input v-model="search" placeholder="Search" />
+        </div>
+
+        <div class="mt-8 space-y-4">
+          <h2 class="text-2xl font-semibold">Chat</h2>
+          <div class="space-y-2">
+            <div v-for="(chat, index) in chats" :key="index" :class="chat.role === 'user' ? 'text-right' : ''">
+              <div :class="['inline-block px-3 py-2 rounded', chat.role === 'user' ? 'bg-neutral-200' : 'bg-neutral-300']">
+                {{ chat.content }}
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2 items-end">
+            <Input v-model="chatMessage" placeholder="Say something" class="flex-1" />
+            <Button @click="sendChat" :disabled="sending">Send</Button>
+          </div>
         </div>
       </div>
     </div>
