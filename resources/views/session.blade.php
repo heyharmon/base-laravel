@@ -1,7 +1,9 @@
+{{-- Shows progress and controls for a single multi-agent session --}}
 <h1>Multi-Agent Session: {{ $sessionId }}</h1>
 
 <form method="POST" action="{{ route('stop-session', ['id' => $sessionId]) }}">
     @csrf
+    <!-- Allows the user to cancel the batch of agent jobs -->
     <button type="submit">Stop</button>
 </form>
 

@@ -9,8 +9,14 @@ use App\Models\AgentMessage;
 use App\Models\AgentSession;
 use App\Jobs\ManagerAgentStepJob;
 
+/**
+ * Controller exposing routes to start, view and stop multi-agent sessions.
+ */
 class MultiAgentController extends Controller
 {
+    /**
+     * Begin a new multi-agent session and dispatch the first manager step.
+     */
     public function startSession(Request $request)
     {
         $request->validate(['task' => 'required|string']);
@@ -29,6 +35,9 @@ class MultiAgentController extends Controller
         return redirect()->route('view-session', ['id' => $sessionId]);
     }
 
+    /**
+     * Display all messages that have been generated for a session.
+     */
     public function viewSession($id)
     {
         // Fetch all messages for this session to display
@@ -36,6 +45,9 @@ class MultiAgentController extends Controller
         return view('session', ['messages' => $messages, 'sessionId' => $id]);
     }
 
+    /**
+     * Cancel all queued jobs for the given session via batch cancellation.
+     */
     public function stopSession($id)
     {
         $session = AgentSession::where('session_id', $id)->first();

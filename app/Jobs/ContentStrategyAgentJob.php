@@ -11,18 +11,32 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use OpenAI\Laravel\Facades\OpenAI;
 
+/**
+ * Handles execution of the Content Strategy agent in its own job.
+ *
+ * The job logs a user request and system prompt, calls the LLM, stores the
+ * assistant's response, and can be cancelled when the batch is stopped.
+ */
 class ContentStrategyAgentJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, SerializesModels;
 
     public $timeout = 30;
 
+    /**
+     * @param string $sessionId    The associated session identifier
+     * @param string $strategyTask  Prompt passed to the content strategy agent
+     */
     public function __construct(public string $sessionId, public string $strategyTask)
     {
     }
 
+    /**
+     * Run the content strategy agent and store its response.
+     */
     public function handle(): void
     {
+        // Exit early if the user cancelled the batch
         if ($this->batch()?->cancelled()) {
             return;
         }

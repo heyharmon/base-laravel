@@ -11,16 +11,34 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use OpenAI\Laravel\Facades\OpenAI;
 
+/**
+ * Coordinator job that manages the overall multi-agent workflow.
+ *
+ * Each execution represents a single step of the manager agent. The manager
+ * may schedule new sub-agent jobs and re-dispatch itself for the next step
+ * using Laravel's batch feature.
+ */
 class ManagerAgentStepJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, SerializesModels;
 
     public $timeout = 30;
 
+    /**
+     * @param string      $sessionId   Session identifier for message grouping
+     * @param string|null $userRequest Optional prompt used on the first step
+     */
     public function __construct(public string $sessionId, public ?string $userRequest = null)
     {
     }
 
+    /**
+     * Execute one step of the manager agent.
+     *
+     * The manager may respond with messages or function calls to invoke other
+     * agents. Detected function calls are queued as new jobs within the same
+     * batch. If the batch is cancelled, the step exits early.
+     */
     public function handle(): void
     {
         if ($this->batch()?->cancelled()) {
@@ -120,6 +138,12 @@ class ManagerAgentStepJob implements ShouldQueue
         }
     }
 
+    /**
+     * Rebuild the conversation history for the given agent.
+     *
+     * Messages are pulled from the database and formatted for the API
+     * request so the agent can maintain context between steps.
+     */
     private function buildMessagesArray(string $agentName): array
     {
         $messages = [];

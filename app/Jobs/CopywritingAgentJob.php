@@ -11,18 +11,32 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use OpenAI\Laravel\Facades\OpenAI;
 
+/**
+ * Executes the copywriting agent in its own queued job.
+ *
+ * Stores prompts and the resulting assistant output while respecting batch
+ * cancellation.
+ */
 class CopywritingAgentJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, SerializesModels;
 
     public $timeout = 30;
 
+    /**
+     * @param string $sessionId      The session identifier
+     * @param string $copywritingTask Prompt sent to the copywriting agent
+     */
     public function __construct(public string $sessionId, public string $copywritingTask)
     {
     }
 
+    /**
+     * Invoke the copywriting agent and record the assistant message.
+     */
     public function handle(): void
     {
+        // Skip processing if the batch has been cancelled
         if ($this->batch()?->cancelled()) {
             return;
         }
