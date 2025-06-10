@@ -1,5 +1,10 @@
 <h1>Multi-Agent Session: {{ $sessionId }}</h1>
 
+<form method="POST" action="{{ route('stop-session', ['id' => $sessionId]) }}">
+    @csrf
+    <button type="submit">Stop</button>
+</form>
+
 @if($messages->isEmpty())
     <p>Session in progress... (If this page was loaded immediately, the agents are still working. Refresh periodically.)</p>
 @endif

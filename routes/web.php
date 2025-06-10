@@ -9,6 +9,7 @@ Route::get('/', function () {
 
 Route::post('/start-session', [MultiAgentController::class, 'startSession'])->name('start-session');
 Route::get('/view-session/{id}', [MultiAgentController::class, 'viewSession'])->name('view-session');
+Route::post('/stop-session/{id}', [MultiAgentController::class, 'stopSession'])->name('stop-session');
 
 Route::get('/{any?}', function () {
     return view('app');
