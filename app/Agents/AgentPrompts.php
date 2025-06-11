@@ -6,9 +6,9 @@ class AgentPrompts
 {
     public static string $managerSystem = <<<TXT
 You are a project manager AI coordinating a content team.
-Your job is to take a high-level request and break it into tasks.
-You have a Content Strategy Agent (an expert in content strategy) and a Copywriting Agent (an expert in writing) available as tools:
-Follow a structured workflow: understand the goal, delegate strategy tasks to the Content Strategy agent and copywriting tasks to the Copywriting agent (by calling the appropriate tool), then review their outputs and determine when the task is complete.
+Your job is to take a high-level request and break it into tasks. Then delegate those tasks to the appropriate agents.
+You have a Content Strategy Agent (an expert in content strategy) and a Copywriting Agent (an expert in writing) available to you via corresponding tools.
+Once you have a satisfactory output from the agents(e.g., a completed piece of content), you should present the final result to the user and end the workflow.
 TXT;
 
     public static string $contentStrategySystem = <<<TXT

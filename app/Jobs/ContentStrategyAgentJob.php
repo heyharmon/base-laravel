@@ -40,6 +40,8 @@ class ContentStrategyAgentJob implements ShouldQueue
         }
 
         $agentName = 'Content Strategy Agent';
+
+        // Store messages to database
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
@@ -52,6 +54,8 @@ class ContentStrategyAgentJob implements ShouldQueue
             'role' => 'user',
             'content' => $this->strategyTask,
         ]);
+
+        // Prepare messages for API call (supported values for role are 'assistant', 'system', 'developer', and 'user')
         $messages = [
             ['role' => 'system', 'content' => AgentPrompts::$contentStrategySystem],
             ['role' => 'user', 'content' => $this->strategyTask],
@@ -60,7 +64,7 @@ class ContentStrategyAgentJob implements ShouldQueue
         $apiResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
-            'tools' => [['type' => 'web_search']],
+            'tools' => [['type' => 'web_search']], // TODO: I don't know if this working or when it is being used
             'temperature' => 0.7,
         ]);
 
@@ -74,7 +78,8 @@ class ContentStrategyAgentJob implements ShouldQueue
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
-            'role' => 'assistant',
+            'role' => 'assistant', // or 'sub-agent', 'agent' or 'assistant'
+            // 'function_name' => 'call_content_strategy_agent',
             'content' => $contentStrategyAnswer,
         ]);
     }

@@ -98,7 +98,7 @@ class ManagerAgentStepJob implements ShouldQueue
 
         // 3. Invoke Manager Agent
         // Assemble message hidtory for Manager agent
-        $messages = $this->buildMessagesArray($managerName);
+        $messages = $this->buildMessagesArray();
 
         // Call OpenAI Responses API for the Manager agents next response
         $apiResponse = OpenAI::responses()->create([
@@ -108,18 +108,18 @@ class ManagerAgentStepJob implements ShouldQueue
             'temperature' => 0.7,
             // 'max_tokens' => 1000,
         ]);
-        Log::info('Manager Agent - API Response: ' . json_encode($apiResponse));
+        // Log::info('Manager Agent - API Response: ' . json_encode($apiResponse));
 
         // The response may contain a message or a function call (or both)
         // (We assume the OpenAI PHP client returns a structured response; we convert to array for easier handleing)
         $items = $apiResponse->toArray()['output'] ?? [];
-        // Log::info('Manager Agent - Items: ' . json_encode($items));
+        Log::info('Manager Agent - Items: ' . json_encode($items));
 
         $shouldContinue = false;
         foreach ($items as $item) {
             if ($item['type'] === 'message') {
                 // Model produced a direct message (potential final answer)
-                $content = $item['content'] ?? '';
+                $content = isset($outputArr[0]['content'][0]['text']) ? $outputArr[0]['content'][0]['text'] : '';
                 // Store the message
                 AgentMessage::create([
                     'session_id' => $this->sessionId,
@@ -172,22 +172,32 @@ class ManagerAgentStepJob implements ShouldQueue
      * Messages are pulled from the database and formatted for the API
      * request so the agent can maintain context between steps.
      */
-    private function buildMessagesArray(string $agentName): array
+    private function buildMessagesArray(): array
     {
         // Fetch all messages for this agent in current session
         $messages = [];
         $history = AgentMessage::where('session_id', $this->sessionId)
-            ->where('agent_name', $agentName)
             ->orderBy('id')->get();
+
+        // Rebuild each message in the conversation history for brevity
+        // Supported values for role are 'assistant', 'system', 'developer', and 'user'
         foreach ($history as $msg) {
-            if ($msg->role === 'assistant' && $msg->content) {
-                $messages[] = ['role' => 'assistant', 'content' => $msg->content];
-            } elseif ($msg->role === 'user') {
-                $messages[] = ['role' => 'user', 'content' => $msg->content];
-            } elseif ($msg->role === 'system') {
-                $messages[] = ['role' => 'system', 'content' => $msg->content];
+            if ($msg->role === 'function') {
+                $messages[] = ['role' => 'assistant', 'content' => $msg->function_name,];
+            } else {
+                $messages[] = ['role' => $msg->role, 'content' => $msg->content];
             }
+
+            // if ($msg->role === 'assistant' && $msg->content) {
+            //     $messages[] = ['role' => 'assistant', 'content' => $msg->content];
+            // } elseif ($msg->role === 'user') {
+            //     $messages[] = ['role' => 'user', 'content' => $msg->content];
+            // } elseif ($msg->role === 'system') {
+            //     $messages[] = ['role' => 'system', 'content' => $msg->content];
+            // }
         }
+
+        Log::info('Manager Agent - Messages Array: ' . json_encode($messages));
         return $messages;
     }
 }

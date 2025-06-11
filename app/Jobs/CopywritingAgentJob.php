@@ -41,6 +41,8 @@ class CopywritingAgentJob implements ShouldQueue
         }
 
         $agentName = 'Copywriting Agent';
+
+        // Store messages to database
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
@@ -53,6 +55,7 @@ class CopywritingAgentJob implements ShouldQueue
             'role' => 'user',
             'content' => $this->copywritingTask,
         ]);
+        // Prepare messages for API call (supported values for role are 'assistant', 'system', 'developer', and 'user')
         $messages = [
             ['role' => 'system', 'content' => AgentPrompts::$copywritingSystem],
             ['role' => 'user', 'content' => $this->copywritingTask],
@@ -61,10 +64,10 @@ class CopywritingAgentJob implements ShouldQueue
         $apiResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
-            'tools' => [['type' => 'web_search']],
+            'tools' => [['type' => 'web_search']], // TODO: I don't know if this working or when it is being used
             'temperature' => 0.7,
         ]);
-        Log::info('Copywriter Agent - API Response: ' . json_encode($apiResponse));
+        // Log::info('Copywriter Agent - API Response: ' . json_encode($apiResponse));
 
         $outputArr = $apiResponse->toArray()['output'] ?? [];
         $copywritingAnswer = '[Copywriting agent did not return text]';
@@ -76,7 +79,8 @@ class CopywritingAgentJob implements ShouldQueue
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
-            'role' => 'assistant',
+            'role' => 'assistant', // or 'sub-agent', 'agent' or 'assistant'
+            // 'function_name' => 'call_copywriting_agent',
             'content' => $copywritingAnswer,
         ]);
     }
