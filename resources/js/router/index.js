@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 // Import pages
 import Home from '@/pages/Home.vue';
 import Feed from '@/pages/Feed.vue';
+import ManageFeeds from '@/pages/ManageFeeds.vue';
 
 const routes = [
   {
@@ -14,6 +15,11 @@ const routes = [
     path: '/feed/:id',
     name: 'feed.show',
     component: Feed,
+  },
+  {
+    path: '/feeds',
+    name: 'feeds.index',
+    component: ManageFeeds,
   },
 ];
 

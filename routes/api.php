@@ -17,4 +17,10 @@ Route::get('/colors', function () {
     ];
 });
 
-Route::get('/feeds/{feed}', [\App\Http\Controllers\FeedController::class, 'show']);
+use App\Http\Controllers\FeedController;
+
+Route::get('/feeds', [FeedController::class, 'index']);
+Route::post('/feeds', [FeedController::class, 'store']);
+Route::put('/feeds/{feed}', [FeedController::class, 'update']);
+Route::delete('/feeds/{feed}', [FeedController::class, 'destroy']);
+Route::get('/feeds/{feed}', [FeedController::class, 'show']);

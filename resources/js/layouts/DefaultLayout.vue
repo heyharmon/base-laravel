@@ -9,7 +9,7 @@
         <h1 class="text-xl font-semibold">Laravel API with Vue 3</h1>
         <nav>
           <router-link to="/" class="px-4 py-2">Home</router-link>
-          <router-link to="/feed/1" class="px-4 py-2">Feed</router-link>
+          <router-link to="/feeds" class="px-4 py-2">Feeds</router-link>
         </nav>
       </div>
     </header>
