@@ -16,3 +16,5 @@ Route::get('/colors', function () {
         'orange',
     ];
 });
+
+Route::get('/feeds/{feed}', [\App\Http\Controllers\FeedController::class, 'show']);
