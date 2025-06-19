@@ -2,14 +2,15 @@
 
 namespace App\Jobs;
 
-use App\Agents\AgentPrompts;
-use App\Models\AgentMessage;
-use Illuminate\Bus\Batchable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use OpenAI\Laravel\Facades\OpenAI;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Bus\Batchable;
+use App\Models\AgentMessage;
+use App\Agents\AgentPrompts;
 
 /**
  * Handles execution of the Content Strategy agent in its own job.
@@ -61,26 +62,25 @@ class ContentStrategyAgentJob implements ShouldQueue
             ['role' => 'user', 'content' => $this->strategyTask],
         ];
 
-        $apiResponse = OpenAI::responses()->create([
+        $agentResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
             'tools' => [['type' => 'web_search']], // TODO: I don't know if this working or when it is being used
             'temperature' => 0.7,
         ]);
 
-        $outputArr = $apiResponse->toArray()['output'] ?? [];
-        $contentStrategyAnswer = '[Content strategy agent did not return text]';
-        if (is_array($outputArr) && isset($outputArr[0]['content'][0]['text'])) {
-            $contentStrategyAnswer = $outputArr[0]['content'][0]['text'];
-        }
+        $items = $agentResponse->toArray()['output'] ?? [];
+        Log::info('Content Strategy Agent - Items: ' . json_encode($items));
+
+        // Model produced a direct message
+        $content = isset($items[0]['content'][0]['text']) ? $items[0]['content'][0]['text'] : 'Content strategy agent did not return text';
 
         // Add the sub-agent's answer as assistant result back to Manager's conversation
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
             'role' => 'assistant', // or 'sub-agent', 'agent' or 'assistant'
-            // 'function_name' => 'call_content_strategy_agent',
-            'content' => $contentStrategyAnswer,
+            'content' => $content,
         ]);
     }
 }

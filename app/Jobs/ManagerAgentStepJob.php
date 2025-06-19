@@ -101,25 +101,25 @@ class ManagerAgentStepJob implements ShouldQueue
         $messages = $this->buildMessagesArray();
 
         // Call OpenAI Responses API for the Manager agents next response
-        $apiResponse = OpenAI::responses()->create([
+        $agentResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
             'tools' => $tools,
             'temperature' => 0.7,
             // 'max_tokens' => 1000,
         ]);
-        // Log::info('Manager Agent - API Response: ' . json_encode($apiResponse));
 
         // The response may contain a message or a function call (or both)
         // (We assume the OpenAI PHP client returns a structured response; we convert to array for easier handleing)
-        $items = $apiResponse->toArray()['output'] ?? [];
+        $items = $agentResponse->toArray()['output'] ?? [];
         Log::info('Manager Agent - Items: ' . json_encode($items));
 
         $shouldContinue = false;
         foreach ($items as $item) {
             if ($item['type'] === 'message') {
                 // Model produced a direct message (potential final answer)
-                $content = isset($outputArr[0]['content'][0]['text']) ? $outputArr[0]['content'][0]['text'] : '';
+                $content = isset($items[0]['content'][0]['text']) ? $items[0]['content'][0]['text'] : '';
+
                 // Store the message
                 AgentMessage::create([
                     'session_id' => $this->sessionId,

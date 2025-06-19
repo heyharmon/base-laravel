@@ -1,45 +1,59 @@
 # Windsurf Editor Rules
+
 ## Critical: With each of my requests, think carefully and only action the specific task I have given you with the most concise and elegant solution that changes as little code as possible.
 
 ### General Context
-* This is a Laravel 12 api project.
+
+-   This is a Laravel 12 api project.
 
 ### General Rules
-* Always challenge me on my instructions if I am suggesting a pattern that does not map to the Laravel, Inertia, Vue way.
-* Never explain code or changes made, just do it.
+
+-   Always challenge me on my instructions if I am suggesting a pattern that does not map to the Laravel, Inertia, Vue way.
+-   Never explain code or changes made, just do it.
 
 ### Laravel
-* Always use api routes in routes/api.php, this is an api.
-* Do not create requests, resources or tests unless asked.
+
+-   Always use api routes in routes/api.php, this is an api.
+-   Do not create requests, resources or tests unless asked.
+
 #### Where to find Laravel files
-* Models can be found in app/Models/{Model}
-* Controllers can be found in app/Http/{ModelController}
-* Requests can be found in app/Http/Requests/{Model}/{ModelActionRequest}
-* Resources can be found in app/Http/Resources/{Model}/{ModelResource}
-* Feature tests can be found in tests/Feature/{Model}/{ModelTest}
+
+-   Models can be found in app/Models/{Model}
+-   Controllers can be found in app/Http/{ModelController}
+-   Requests can be found in app/Http/Requests/{Model}/{ModelActionRequest}
+-   Resources can be found in app/Http/Resources/{Model}/{ModelResource}
+-   Feature tests can be found in tests/Feature/{Model}/{ModelTest}
+
 #### When creating a model or controller
-* When creating a model or controller, always examine adjacent or functionally similar controller for guidance
+
+-   When creating a model or controller, always examine adjacent or functionally similar controller for guidance
+
 #### Controller rules
-* Only use resourceful methods in controllers: index, show, create, store, edit, update, destroy.
-* Always return json responses from controllers, this is an api.
+
+-   Only use resourceful methods in controllers: index, show, create, store, edit, update, destroy.
+-   Always return json responses from controllers, this is an api.
+
 #### General Laravel rules
-* Always use implicit route model binding in controllers when possible.
-* Always look at existing related tests as reference if you are having trouble writing a new test.
-* Never run php artisan serve.
+
+-   Always use implicit route model binding in controllers when possible.
+-   Always look at existing related tests as reference if you are having trouble writing a new test.
+-   Never run php artisan serve.
 
 ### Vue Rules
-* Never write typescript. If you see typescript, do not remove it just leave it, unless instructed to remove it.
-* Always look at resources/js/Pages for Inertia page examples.
-* Always use script setup style in Vue components.
-* Always attempt to use a component in resources/js/components for components you can use before writing new components.
-* Always attempt to use a ui element in resources/js/components/ui before writing new ui elements such as buttons, cards and form elements.
-* Always use a radix-vue component when creating a new component, if available.
-* Always import components then layouts after all other imports.
-* Always use '@' for imports.
+
+-   Never write typescript. If you see typescript, do not remove it just leave it, unless instructed to remove it.
+-   Always look at resources/js/Pages for Inertia page examples.
+-   Always use script setup style in Vue components.
+-   Always attempt to use a component in resources/js/components for components you can use before writing new components.
+-   Always attempt to use a ui element in resources/js/components/ui before writing new ui elements such as buttons, cards and form elements.
+-   Always import components then layouts after all other imports.
+-   Always use '@' for imports.
 
 ### Authorization Rules
-* We are not using authentication or authorization in this app, ignore any authorization logic.
+
+-   We are not using authentication or authorization in this app, ignore any authorization logic.
 
 ### Tailwind Rules
-* Always use Tailwind CSS classes for styling.
-* Always use shades of bg-neutral for backgrounds.
+
+-   Always use Tailwind CSS classes for styling.
+-   Always use shades of bg-neutral for backgrounds.

@@ -61,19 +61,18 @@ class CopywritingAgentJob implements ShouldQueue
             ['role' => 'user', 'content' => $this->copywritingTask],
         ];
 
-        $apiResponse = OpenAI::responses()->create([
+        $agentResponse = OpenAI::responses()->create([
             'model' => 'gpt-4o',
             'input' => $messages,
             'tools' => [['type' => 'web_search']], // TODO: I don't know if this working or when it is being used
             'temperature' => 0.7,
         ]);
-        // Log::info('Copywriter Agent - API Response: ' . json_encode($apiResponse));
 
-        $outputArr = $apiResponse->toArray()['output'] ?? [];
-        $copywritingAnswer = '[Copywriting agent did not return text]';
-        if (is_array($outputArr) && isset($outputArr[0]['content'][0]['text'])) {
-            $copywritingAnswer = $outputArr[0]['content'][0]['text'];
-        }
+        $items = $agentResponse->toArray()['output'] ?? [];
+        Log::info('Copywriting Agent - Items: ' . json_encode($items));
+
+        // Model produced a direct message
+        $content = isset($items[0]['content'][0]['text']) ? $items[0]['content'][0]['text'] : 'Copywriting agent did not return text';
 
         // Add the sub-agent's answer as assistant result back to Manager's conversation
         AgentMessage::create([
@@ -81,7 +80,7 @@ class CopywritingAgentJob implements ShouldQueue
             'agent_name' => $agentName,
             'role' => 'assistant', // or 'sub-agent', 'agent' or 'assistant'
             // 'function_name' => 'call_copywriting_agent',
-            'content' => $copywritingAnswer,
+            'content' => $content,
         ]);
     }
 }
