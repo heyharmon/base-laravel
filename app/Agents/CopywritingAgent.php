@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Agents;
 
 use OpenAI\Laravel\Facades\OpenAI;
 use Illuminate\Support\Facades\Log;
@@ -10,28 +10,35 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Bus\Batchable;
 use App\Models\AgentMessage;
-use App\Agents\AgentPrompts;
 
 /**
- * Handles execution of the Content Strategy agent in its own job.
+ * Executes the Copywriting Agent.
  *
- * The job logs a user request and system prompt, calls the LLM, stores the
+ * The agent logs a user request and system prompt, calls the LLM, stores the
  * assistant's response, and can be cancelled when the batch is stopped.
  */
-class ContentStrategyAgentJob implements ShouldQueue
+class CopywritingAgent implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, SerializesModels;
 
-    public $timeout = 30;
+    public $timeout = 300;
+
+    private static string $systemPrompt = <<<TXT
+You are a copywriter agent, expert in writing.
+When given a copywriting task, you will write high-quality, thoughtful copy for the request.
+TXT;
 
     /**
-     * @param string $sessionId    The associated session identifier
-     * @param string $strategyTask  Prompt passed to the content strategy agent
+     * @param string $sessionId  The session identifier
+     * @param string $task  Prompt passed to the agent
      */
-    public function __construct(public string $sessionId, public string $strategyTask) {}
+    public function __construct(
+        public string $sessionId,
+        public string $task
+    ) {}
 
     /**
-     * Run the content strategy agent and store its response.
+     * Run the agent and store its response.
      */
     public function handle(): void
     {
@@ -40,46 +47,45 @@ class ContentStrategyAgentJob implements ShouldQueue
             return;
         }
 
-        $agentName = 'Content Strategy Agent';
+        $agentName = 'Copywriting Agent';
 
         // Store messages to database
         AgentMessage::create([
             'session_id' => $this->sessionId,
-            'agent_name' => $agentName,
+            'agent_name' => null,
             'role' => 'system',
-            'content' => AgentPrompts::$contentStrategySystem,
+            'content' => self::$systemPrompt,
         ]);
         AgentMessage::create([
             'session_id' => $this->sessionId,
-            'agent_name' => $agentName,
+            'agent_name' => null,
             'role' => 'user',
-            'content' => $this->strategyTask,
+            'content' => $this->task,
         ]);
 
         // Prepare messages for API call (supported values for role are 'assistant', 'system', 'developer', and 'user')
         $messages = [
-            ['role' => 'system', 'content' => AgentPrompts::$contentStrategySystem],
-            ['role' => 'user', 'content' => $this->strategyTask],
+            ['role' => 'system', 'content' => self::$systemPrompt],
+            ['role' => 'user', 'content' => $this->task],
         ];
 
         $agentResponse = OpenAI::responses()->create([
-            'model' => 'gpt-4o',
+            'model' => 'gpt-4.1-mini-2025-04-14',
             'input' => $messages,
-            'tools' => [['type' => 'web_search']], // TODO: I don't know if this working or when it is being used
             'temperature' => 0.7,
         ]);
 
         $items = $agentResponse->toArray()['output'] ?? [];
-        Log::info('Content Strategy Agent - Items: ' . json_encode($items));
+        Log::info('Copywriting Agent - Items: ' . json_encode($items));
 
-        // Model produced a direct message
-        $content = isset($items[0]['content'][0]['text']) ? $items[0]['content'][0]['text'] : 'Content strategy agent did not return text';
+        // Model produced a direct message (potential final answer)
+        $content = isset($items[0]['content'][0]['text']) ? $items[0]['content'][0]['text'] : 'Copywriting Agent did not return text';
 
         // Add the sub-agent's answer as assistant result back to Manager's conversation
         AgentMessage::create([
             'session_id' => $this->sessionId,
             'agent_name' => $agentName,
-            'role' => 'assistant', // or 'sub-agent', 'agent' or 'assistant'
+            'role' => 'sub-agent', // or 'sub-agent', 'agent' or 'assistant'
             'content' => $content,
         ]);
     }

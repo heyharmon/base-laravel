@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use App\Models\AgentMessage;
 use App\Models\AgentSession;
-use App\Jobs\ManagerAgentStepJob;
+use App\Agents\ManagerAgent;
 
 /**
  * Controller exposing routes to start, view and stop multi-agent sessions.
@@ -24,7 +24,7 @@ class MultiAgentController extends Controller
         $task = $request->input('task');
 
         $batch = Bus::batch([
-            new ManagerAgentStepJob($sessionId, $task),
+            new ManagerAgent($sessionId, $task),
         ])->dispatch();
 
         AgentSession::create([

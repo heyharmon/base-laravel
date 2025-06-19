@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('agent_messages', function (Blueprint $table) {
             $table->id();
-            $table->string('session_id');        // ID to group a single session's messages
-            $table->string('agent_name');        // e.g. "Manager", "Designer", "Engineer"
-            $table->string('role');              // "system", "user", "assistant", or "function"
-            $table->text('content')->nullable(); // message content (for user/assistant)
+            $table->string('session_id');                // ID to group a single session's messages
+            $table->string('role');                      // "system", "user", "assistant", or "function"
+            $table->string('agent_name')->nullable();    // e.g. "Manager", "Designer", "Engineer"
+            $table->text('content')->nullable();         // message content (for user/assistant)
             $table->string('function_name')->nullable(); // if role is 'function', store function call name
             $table->json('function_args')->nullable();   // store function call arguments
             $table->timestamps();
