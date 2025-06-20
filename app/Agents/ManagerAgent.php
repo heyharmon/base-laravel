@@ -303,7 +303,7 @@ TXT;
         // Call OpenAI Responses API for the Manager agents next response
         $agentResponse = OpenAI::responses()->create([
             'model' => 'o4-mini',
-            // 'reasoning' => [ 'effort' => 'low'],
+            'reasoning' => ['effort' => 'medium'],
             'input' => $messages,
             'tools' => $tools,
         ]);
