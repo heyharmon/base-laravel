@@ -13,12 +13,13 @@ return new class extends Migration
     {
         Schema::create('agent_messages', function (Blueprint $table) {
             $table->id();
-            $table->string('session_id');                // ID to group a single session's messages
-            $table->string('role');                      // "system", "user", "assistant", or "function"
-            $table->string('agent_name')->nullable();    // e.g. "Manager", "Designer", "Engineer"
-            $table->text('content')->nullable();         // message content (for user/assistant)
-            $table->string('function_name')->nullable(); // if role is 'function', store function call name
-            $table->json('function_args')->nullable();   // store function call arguments
+            $table->string('session_id');                     // ID to group a single session's messages
+            $table->string('openai_response_id')->nullable(); // ID of the OpenAI response
+            $table->string('role');                           // "system", "user", "assistant", or "function"
+            $table->string('agent_name')->nullable();         // e.g. "Manager", "Designer", "Engineer"
+            $table->text('content')->nullable();              // message content (for user/assistant)
+            $table->string('function_name')->nullable();      // if role is 'function', store function call name
+            $table->json('function_args')->nullable();        // store function call arguments
             $table->timestamps();
         });
     }
