@@ -13,13 +13,15 @@
 
 <!-- Conversation Messages -->
 @foreach($messages as $msg)
-    <p>
-      <strong>{{ $msg->agent_name }} ({{ $msg->role }}):</strong>
-      {{ $msg->role === 'function'
-           ? '⚡ [Function Call] ' . $msg->function_name . '(' . json_encode($msg->function_args) . ')'
-           : nl2br(e($msg->content))
-      }}
-    </p>
+    @if($msg->role !== 'system')
+        <p>
+            <strong>{{ $msg->agent_name }} ({{ $msg->role }}):</strong>
+            {{ $msg->role === 'function'
+                ? '⚡ [Function Call] ' . $msg->function_name . '(' . json_encode($msg->function_args) . ')'
+                : $msg->content
+            }}
+        </p>
+    @endif
 @endforeach
 
 {{-- End of conversation --}}
