@@ -39,4 +39,8 @@ return [
         'api_key' => env('OPENAI_API_KEY'),
         'organization' => env('OPENAI_ORGANIZATION'),
     ],
+
+    'firecrawl' => [
+        'key' => env('FIRECRAWL_API_KEY'),
+    ],
 ];

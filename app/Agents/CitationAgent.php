@@ -42,12 +42,12 @@ TXT;
      */
     public function handle(): void
     {
+        $agentName = 'Citation Agent';
+
         // Exit early if the user cancelled the batch
         if ($this->batch()?->cancelled()) {
             return;
         }
-
-        $agentName = 'Citation Agent';
 
         // Store messages to database
         AgentMessage::create([
