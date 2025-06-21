@@ -77,11 +77,39 @@ class OpenAIService
     private function getSystemPrompt(Conversation $conversation, array $context): string
     {
         $plan = $conversation->agent_plan ? json_encode($conversation->agent_plan) : 'No plan yet';
+        
+        $recentResults = '';
+        if (isset($context['context']) && $context['context'] === 'job_completed') {
+            $recentCompletedChats = $conversation->chats()
+                ->whereNotNull('function_response')
+                ->where('job_status', 'completed')
+                ->latest()
+                ->limit(3)
+                ->get();
+
+            if ($recentCompletedChats->isNotEmpty()) {
+                $recentResults = "\n\nRecent function call results:\n";
+                foreach ($recentCompletedChats as $chat) {
+                    if ($chat->function_name === 'web_search' && $chat->web_search_results) {
+                        $recentResults .= "- Web search for '{$chat->function_arguments['query']}' returned:\n";
+                        foreach (array_slice($chat->web_search_results, 0, 3) as $result) {
+                            $recentResults .= "  * {$result['title']} ({$result['url']})\n";
+                            if (!empty($result['content'])) {
+                                $recentResults .= "    Content preview: " . substr($result['content'], 0, 200) . "...\n";
+                            }
+                        }
+                    } elseif ($chat->function_name === 'fetch_webpage' && $chat->web_search_results) {
+                        $recentResults .= "- Fetched webpage content:\n";
+                        $recentResults .= "  Content: " . substr($chat->web_search_results, 0, 1000) . "...\n";
+                    }
+                }
+            }
+        }
 
         return <<<PROMPT
 You are an advanced research and writing agent. Your primary goal is to help users create comprehensive, well-researched articles.
 
-Current conversation plan: {$plan}
+Current conversation plan: {$plan}{$recentResults}
 
 Your capabilities:
 1. Create and update research plans
@@ -97,6 +125,7 @@ Guidelines:
 - Include accurate citations in your articles
 - Regularly review and improve your work
 - Be transparent about your reasoning and progress
+- USE THE RECENT FUNCTION CALL RESULTS SHOWN ABOVE when they are available
 
 When writing articles:
 - Follow the outline structure

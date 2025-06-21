@@ -23,19 +23,24 @@ class FetchWebpageJob extends BaseAgentJob
         try {
             $pageData = $firecrawl->fetchPage($this->url);
 
-            // TODO: Use LLM to extract key points from page content
+            if ($pageData === null) {
+                throw new \Exception("Failed to fetch webpage content from {$this->url}");
+            }
+
+            // Store the full content in web_search_results for the agent to see
             $this->chat->update([
                 'web_search_results' => $pageData['content'],
             ]);
 
             $this->markJobCompleted([
                 'url' => $this->url,
-                'title' => $pageData['title'],
-                'content_length' => strlen($pageData['content']),
+                'title' => $pageData['title'] ?? 'Unknown Title',
+                'content_length' => strlen($pageData['content'] ?? ''),
+                'content_preview' => substr($pageData['content'] ?? '', 0, 500),
             ]);
 
             $this->continueConversation(
-                "Successfully fetched webpage '{$pageData['title']}' from {$this->url}"
+                "Successfully fetched webpage content from {$this->url}. The page contains " . strlen($pageData['content'] ?? '') . " characters of markdown content."
             );
         } catch (\Exception $e) {
             $this->markJobFailed($e);
