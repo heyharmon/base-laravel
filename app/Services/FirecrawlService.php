@@ -25,14 +25,21 @@ class FirecrawlService
                 'query' => $query,
                 'limit' => $limit,
                 'scrape' => true,
+                'timeout' => 30000 // 30 seconds timeout
             ]);
 
             if ($response->successful()) {
-                return $response->json()['data'] ?? [];
+                $data = $response->json()['data'] ?? [];
+                Log::info('Firecrawl search successful', [
+                    'query' => $query,
+                    'results_count' => count($data)
+                ]);
+                return $data;
             }
 
             Log::error('Firecrawl search failed', [
                 'query' => $query,
+                'status' => $response->status(),
                 'response' => $response->body(),
             ]);
 
