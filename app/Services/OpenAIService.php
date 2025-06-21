@@ -149,37 +149,61 @@ PROMPT;
 
         switch ($functionName) {
             case 'update_plan':
-                UpdatePlanJob::dispatch($conversation, $arguments['plan']);
+                if (isset($arguments['plan'])) {
+                    UpdatePlanJob::dispatch($conversation, $arguments['plan']);
+                } else {
+                    Log::warning('Missing plan in update_plan function call', ['arguments' => $arguments]);
+                }
                 break;
             case 'web_search':
-                WebSearchJob::dispatch($conversation, $chat, $arguments['query']);
+                if (isset($arguments['query'])) {
+                    WebSearchJob::dispatch($conversation, $chat, $arguments['query']);
+                } else {
+                    Log::warning('Missing query in web_search function call', ['arguments' => $arguments]);
+                }
                 break;
             case 'fetch_webpage':
-                FetchWebpageJob::dispatch($conversation, $chat, $arguments['url']);
+                if (isset($arguments['url'])) {
+                    FetchWebpageJob::dispatch($conversation, $chat, $arguments['url']);
+                } else {
+                    Log::warning('Missing url in fetch_webpage function call', ['arguments' => $arguments]);
+                }
                 break;
             case 'write_article_section':
-                WriteArticleSectionJob::dispatch(
-                    $conversation,
-                    $chat,
-                    $arguments['article_id'],
-                    $arguments['section'],
-                    $arguments['content']
-                );
+                if (isset($arguments['article_id']) && isset($arguments['section']) && isset($arguments['content'])) {
+                    WriteArticleSectionJob::dispatch(
+                        $conversation,
+                        $chat,
+                        $arguments['article_id'],
+                        $arguments['section'],
+                        $arguments['content']
+                    );
+                } else {
+                    Log::warning('Missing required parameters in write_article_section function call', ['arguments' => $arguments]);
+                }
                 break;
             case 'create_article':
-                CreateArticleJob::dispatch(
-                    $conversation,
-                    $chat,
-                    $arguments['title'],
-                    $arguments['outline']
-                );
+                if (isset($arguments['title']) && isset($arguments['outline'])) {
+                    CreateArticleJob::dispatch(
+                        $conversation,
+                        $chat,
+                        $arguments['title'],
+                        $arguments['outline']
+                    );
+                } else {
+                    Log::warning('Missing required parameters in create_article function call', ['arguments' => $arguments]);
+                }
                 break;
             case 'review_article':
-                ReviewArticleJob::dispatch(
-                    $conversation,
-                    $chat,
-                    $arguments['article_id']
-                );
+                if (isset($arguments['article_id'])) {
+                    ReviewArticleJob::dispatch(
+                        $conversation,
+                        $chat,
+                        $arguments['article_id']
+                    );
+                } else {
+                    Log::warning('Missing article_id in review_article function call', ['arguments' => $arguments]);
+                }
                 break;
         }
     }
