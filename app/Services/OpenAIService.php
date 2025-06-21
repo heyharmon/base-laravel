@@ -77,7 +77,7 @@ class OpenAIService
     private function getSystemPrompt(Conversation $conversation, array $context): string
     {
         $plan = $conversation->agent_plan ? json_encode($conversation->agent_plan) : 'No plan yet';
-        
+
         $recentResults = '';
         if (isset($context['context']) && $context['context'] === 'job_completed') {
             $recentCompletedChats = $conversation->chats()
@@ -181,7 +181,7 @@ PROMPT;
                 if (isset($arguments['plan'])) {
                     UpdatePlanJob::dispatch($conversation, $arguments['plan']);
                 } else {
-                    Log::warning('Missing plan in update_plan function call', ['arguments' => $arguments]);
+                    Log::warning('Missing or empty plan in update_plan function call', ['arguments' => $arguments]);
                 }
                 break;
             case 'web_search':
@@ -242,13 +242,33 @@ PROMPT;
         return [
             [
                 'name' => 'update_plan',
-                'description' => 'Update the current research and writing plan',
+                'description' => 'Update the current research and writing plan with specific steps and progress',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'plan' => [
                             'type' => 'object',
-                            'description' => 'The updated plan with steps, status, and notes',
+                            'description' => 'The updated plan object containing steps, goals, or progress. Must not be empty.',
+                            'properties' => [
+                                'steps' => [
+                                    'type' => 'array',
+                                    'description' => 'List of steps or tasks in the plan',
+                                    'items' => ['type' => 'string']
+                                ],
+                                'goal' => [
+                                    'type' => 'string',
+                                    'description' => 'The main goal or objective'
+                                ],
+                                'status' => [
+                                    'type' => 'string',
+                                    'description' => 'Current status of the plan'
+                                ],
+                                'notes' => [
+                                    'type' => 'string',
+                                    'description' => 'Additional notes or context'
+                                ]
+                            ],
+                            'minProperties' => 1
                         ],
                     ],
                     'required' => ['plan'],
