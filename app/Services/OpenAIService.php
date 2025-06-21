@@ -114,7 +114,7 @@ PROMPT;
 
         $chat = $conversation->chats()->create([
             'role' => 'assistant',
-            'content' => $message->content ?? null,
+            'content' => $message->content ?? '', // Ensure content is never null
             'function_name' => $message->functionCall->name ?? null,
             'function_arguments' => $message->functionCall->arguments ?? null,
             'prompt_tokens' => $usage->promptTokens,
