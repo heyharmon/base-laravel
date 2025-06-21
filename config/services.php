@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
+    'firecrawl' => [
+        'api_key' => env('FIRECRAWL_API_KEY'),
+        'base_url' => env('FIRECRAWL_BASE_URL', 'https://api.firecrawl.dev/v0'),
+    ],
+
 ];
