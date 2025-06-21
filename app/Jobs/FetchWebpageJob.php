@@ -23,12 +23,9 @@ class FetchWebpageJob extends BaseAgentJob
         try {
             $pageData = $firecrawl->fetchPage($this->url);
 
-            if (!$pageData) {
-                throw new \Exception("Failed to fetch webpage: {$this->url}");
-            }
-
+            // TODO: Use LLM to extract key points from page content
             $this->chat->update([
-                'web_search_results' => [$pageData],
+                'web_search_results' => $pageData['content'],
             ]);
 
             $this->markJobCompleted([

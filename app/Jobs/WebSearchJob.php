@@ -22,6 +22,7 @@ class WebSearchJob extends BaseAgentJob
 
         try {
             $results = $firecrawl->search($this->query);
+
             $this->chat->update([
                 'web_search_results' => $results,
             ]);

@@ -13,7 +13,7 @@ class FirecrawlService
     public function __construct()
     {
         $this->apiKey = config('services.firecrawl.api_key');
-        $this->baseUrl = config('services.firecrawl.base_url', 'https://api.firecrawl.dev/v0');
+        $this->baseUrl = config('services.firecrawl.base_url', 'https://api.firecrawl.dev/v1');
     }
 
     public function search(string $query, int $limit = 10): array
@@ -24,16 +24,13 @@ class FirecrawlService
             ])->post($this->baseUrl . '/search', [
                 'query' => $query,
                 'limit' => $limit,
-                'scrape' => true,
-                'timeout' => 30000 // 30 seconds timeout
+                // 'scrapeOptions' => [
+                //     'formats' => ['markdown', 'html']
+                // ]
             ]);
 
             if ($response->successful()) {
                 $data = $response->json()['data'] ?? [];
-                Log::info('Firecrawl search successful', [
-                    'query' => $query,
-                    'results_count' => count($data)
-                ]);
                 return $data;
             }
 
@@ -61,7 +58,10 @@ class FirecrawlService
                 'Authorization' => 'Bearer ' . $this->apiKey,
             ])->post($this->baseUrl . '/scrape', [
                 'url' => $url,
-                'formats' => ['markdown', 'html'],
+                'formats' => [
+                    'markdown',
+                    // 'html'
+                ],
             ]);
 
             if ($response->successful()) {
