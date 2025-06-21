@@ -2,6 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Models\Conversation;
+use App\Models\Chat;
 use App\Models\Article;
 
 class CreateArticleJob extends BaseAgentJob

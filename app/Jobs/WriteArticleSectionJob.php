@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\Article;
+use App\Models\Conversation;
+use App\Models\Chat;
 
 class WriteArticleSectionJob extends BaseAgentJob
 {

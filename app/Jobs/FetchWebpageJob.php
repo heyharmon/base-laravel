@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Services\FirecrawlService;
+use App\Models\Conversation;
+use App\Models\Chat;
 
 class FetchWebpageJob extends BaseAgentJob
 {

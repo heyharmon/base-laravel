@@ -68,7 +68,7 @@ class OpenAIService
 
         $messages[] = [
             'role' => 'user',
-            'content' => $message,
+            'content' => $message ?: ' ', // Ensure content is never null
         ];
 
         return $messages;
@@ -242,6 +242,22 @@ PROMPT;
                         'outline' => [
                             'type' => 'array',
                             'description' => 'The article outline structure',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'title' => [
+                                        'type' => 'string',
+                                        'description' => 'Section title'
+                                    ],
+                                    'subsections' => [
+                                        'type' => 'array',
+                                        'description' => 'Optional subsections',
+                                        'items' => [
+                                            'type' => 'string'
+                                        ]
+                                    ]
+                                ]
+                            ]
                         ],
                     ],
                     'required' => ['title', 'outline'],

@@ -4,6 +4,8 @@ namespace App\Jobs;
 
 use App\Models\Article;
 use App\Services\OpenAIService;
+use App\Models\Conversation;
+use App\Models\Chat;
 
 class ReviewArticleJob extends BaseAgentJob
 {
