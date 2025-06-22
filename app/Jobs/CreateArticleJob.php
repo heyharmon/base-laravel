@@ -23,7 +23,7 @@ class CreateArticleJob extends BaseAgentJob
         $this->markJobStarted();
 
         try {
-            $article = $this->conversation->articles()->create([
+            $article = Article::create([
                 'title' => $this->title,
                 'outline' => $this->outline,
                 'content' => '', // Initialize with empty content
