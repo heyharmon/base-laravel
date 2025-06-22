@@ -6,13 +6,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 use App\Models\Chat;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\UpdatePlanJob;
-use App\Jobs\WebSearchJob;
-use App\Jobs\FetchWebpageJob;
-use App\Jobs\WriteArticleSectionJob;
-use App\Jobs\CreateArticleJob;
-use App\Jobs\ReviewArticleJob;
-use App\Jobs\ContinueConversationJob;
+use App\Services\AI\FunctionRegistry;
 
 /**
  * OpenAI Service - Core AI Research and Writing Agent
@@ -34,15 +28,13 @@ use App\Jobs\ContinueConversationJob;
 class OpenAIService
 {
     /**
-     * Available function definitions for OpenAI function calling
-     * Defines what tools the AI can use (web search, article writing, etc.)
+     * Registry of available function handlers
      */
-    private array $functions;
+    private FunctionRegistry $functionRegistry;
 
     public function __construct()
     {
-        // Initialize the function definitions that the AI can call
-        $this->functions = $this->getAvailableFunctions();
+        $this->functionRegistry = new FunctionRegistry();
     }
 
     /**
@@ -69,7 +61,7 @@ class OpenAIService
             $response = OpenAI::chat()->create([
                 'model' => 'gpt-4o',                    // Use GPT-4 Omni model
                 'messages' => $messages,                // Conversation context
-                'functions' => $this->functions,        // Available tools/functions
+                'functions' => $this->functionRegistry->getAllDefinitions(), // Available tools
                 'function_call' => 'auto',              // Let AI decide when to use functions
                 'temperature' => 0.7,                   // Balanced creativity/consistency
             ]);
@@ -302,240 +294,19 @@ PROMPT;
             'function_arguments' => $arguments,
         ]);
 
-        // Dispatch the appropriate job based on function name
-        // Each case validates required parameters and provides helpful error logging
-        switch ($functionName) {
-            case 'update_plan':
-                // Updates the conversation's research/writing plan
-                if (isset($arguments['plan'])) {
-                    UpdatePlanJob::dispatch($conversation, $arguments['plan']);
-                } else {
-                    Log::warning('Missing or empty plan in update_plan function call', ['arguments' => $arguments]);
-                }
-                break;
+        $handler = $this->functionRegistry->getHandler($functionName);
 
-            case 'web_search':
-                // Searches the web using Firecrawl service
-                if (isset($arguments['query'])) {
-                    WebSearchJob::dispatch($conversation, $chat, $arguments['query']);
-                } else {
-                    Log::warning('Missing query in web_search function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'fetch_webpage':
-                // Fetches and converts webpage content to markdown
-                if (isset($arguments['url'])) {
-                    FetchWebpageJob::dispatch($conversation, $chat, $arguments['url']);
-                } else {
-                    Log::warning('Missing url in fetch_webpage function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'write_article_section':
-                // Writes or updates a section of an existing article
-                if (isset($arguments['article_id']) && isset($arguments['section']) && isset($arguments['content'])) {
-                    WriteArticleSectionJob::dispatch(
-                        $conversation,
-                        $chat,
-                        $arguments['article_id'],
-                        $arguments['section'],
-                        $arguments['content']
-                    );
-                } else {
-                    Log::warning('Missing required parameters in write_article_section function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'create_article':
-                // Creates a new article with title and outline structure
-                if (isset($arguments['title']) && isset($arguments['outline'])) {
-                    CreateArticleJob::dispatch(
-                        $conversation,
-                        $chat,
-                        $arguments['title'],
-                        $arguments['outline']
-                    );
-                } else {
-                    Log::warning('Missing required parameters in create_article function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'review_article':
-                // Reviews an article for quality, coherence, and completeness
-                if (isset($arguments['article_id'])) {
-                    ReviewArticleJob::dispatch(
-                        $conversation,
-                        $chat,
-                        $arguments['article_id']
-                    );
-                } else {
-                    Log::warning('Missing article_id in review_article function call', ['arguments' => $arguments]);
-                }
-                break;
+        if (!$handler) {
+            Log::error('Unknown function called', ['function' => $functionName]);
+            return;
         }
+
+        if (!$handler->validate($arguments)) {
+            Log::warning($handler->getValidationError(), ['arguments' => $arguments]);
+            return;
+        }
+
+        $handler->handle($conversation, $chat, $arguments);
     }
 
-    /**
-     * Defines the available functions (tools) that the AI can call
-     * 
-     * This method returns the OpenAI function calling schema that defines:
-     * - What functions are available to the AI
-     * - Parameter requirements and types for each function
-     * - Descriptions to help the AI understand when and how to use each tool
-     * 
-     * The function definitions follow OpenAI's JSON Schema format for function calling.
-     * Each function maps to a corresponding Job class that handles the actual execution.
-     * 
-     * Available Functions:
-     * - update_plan: Updates research/writing plans
-     * - web_search: Searches the web via Firecrawl
-     * - fetch_webpage: Fetches and converts webpage content
-     * - create_article: Creates new articles with structure
-     * - write_article_section: Writes/updates article sections
-     * - review_article: Reviews articles for quality
-     * 
-     * @return array Array of function definitions in OpenAI format
-     */
-    private function getAvailableFunctions(): array
-    {
-        return [
-            // Plan Management Function
-            [
-                'name' => 'update_plan',
-                'description' => 'Update the current research and writing plan with specific steps and progress',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'plan' => [
-                            'type' => 'object',
-                            'description' => 'The updated plan object containing steps, goals, or progress. Must not be empty.',
-                            'properties' => [
-                                'steps' => [
-                                    'type' => 'array',
-                                    'description' => 'List of steps or tasks in the plan',
-                                    'items' => ['type' => 'string']
-                                ],
-                                'goal' => [
-                                    'type' => 'string',
-                                    'description' => 'The main goal or objective'
-                                ],
-                                'status' => [
-                                    'type' => 'string',
-                                    'description' => 'Current status of the plan'
-                                ],
-                                'notes' => [
-                                    'type' => 'string',
-                                    'description' => 'Additional notes or context'
-                                ]
-                            ],
-                            'minProperties' => 1 // Prevents empty plan objects
-                        ],
-                    ],
-                    'required' => ['plan'],
-                ],
-            ],
-            // Web Research Functions
-            [
-                'name' => 'web_search',
-                'description' => 'Search the web for information',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'query' => [
-                            'type' => 'string',
-                            'description' => 'The search query',
-                        ],
-                    ],
-                    'required' => ['query'],
-                ],
-            ],
-            [
-                'name' => 'fetch_webpage',
-                'description' => 'Fetch and extract content from a webpage',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'url' => [
-                            'type' => 'string',
-                            'description' => 'The URL to fetch',
-                        ],
-                    ],
-                    'required' => ['url'],
-                ],
-            ],
-            // Article Management Functions
-            // WORKFLOW: Always call create_article BEFORE write_article_section
-            [
-                'name' => 'create_article',
-                'description' => 'Create a new article with title and outline',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'title' => [
-                            'type' => 'string',
-                            'description' => 'The article title',
-                        ],
-                        'outline' => [
-                            'type' => 'array',
-                            'description' => 'The article outline structure',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'title' => [
-                                        'type' => 'string',
-                                        'description' => 'Section title'
-                                    ],
-                                    'subsections' => [
-                                        'type' => 'array',
-                                        'description' => 'Optional subsections',
-                                        'items' => [
-                                            'type' => 'string'
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ],
-                    ],
-                    'required' => ['title', 'outline'],
-                ],
-            ],
-            [
-                'name' => 'write_article_section',
-                'description' => 'Write or update a section of an article',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'article_id' => [
-                            'type' => 'integer',
-                            'description' => 'The article ID', // Must exist from create_article
-                        ],
-                        'section' => [
-                            'type' => 'string',
-                            'description' => 'The section identifier',
-                        ],
-                        'content' => [
-                            'type' => 'string',
-                            'description' => 'The content for this section',
-                        ],
-                    ],
-                    'required' => ['article_id', 'section', 'content'],
-                ],
-            ],
-            [
-                'name' => 'review_article',
-                'description' => 'Review an article for coherence, accuracy, and completeness',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'article_id' => [
-                            'type' => 'integer',
-                            'description' => 'The article ID to review',
-                        ],
-                    ],
-                    'required' => ['article_id'],
-                ],
-            ],
-        ];
-    }
 }
