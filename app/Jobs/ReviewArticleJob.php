@@ -23,18 +23,13 @@ class ReviewArticleJob extends BaseAgentJob
 
         try {
             $article = Article::findOrFail($this->articleId);
-            $currentVersion = $article->getCurrentVersion();
-
-            if (!$currentVersion) {
-                throw new \Exception('No content to review');
-            }
 
             $article->update(['status' => 'reviewing']);
 
             $reviewAnalysis = [
-                'word_count' => str_word_count($currentVersion->content),
-                'sections_completed' => $this->countCompletedSections($currentVersion->content, $article->outline),
-                'has_citations' => $this->checkForCitations($currentVersion->content),
+                'word_count' => str_word_count($article->content),
+                'sections_completed' => $this->countCompletedSections($article->content, $article->outline),
+                'has_citations' => $this->checkForCitations($article->content),
                 'coherence_check' => 'Pending AI review',
             ];
 
