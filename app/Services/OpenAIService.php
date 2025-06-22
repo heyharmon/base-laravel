@@ -192,7 +192,6 @@ class OpenAIService
                     elseif ($chat->function_name === 'write_article_section' && $chat->function_response) {
                         $response = $chat->function_response;
                         $recentResults .= "- Updated article section '{$response['section']}' for article ID {$response['article_id']}\n";
-                        $recentResults .= "  Article version: {$response['version']}\n";
                         $recentResults .= "  Word count: {$response['word_count']}\n";
                     }
                 }

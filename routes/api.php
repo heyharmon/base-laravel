@@ -14,7 +14,7 @@ Route::get('/conversations/{conversation}/stats', [ConversationController::class
 
 Route::get('/conversations/{conversation}/articles', [ArticleController::class, 'index']);
 Route::get('/conversations/{conversation}/articles/{article}', [ArticleController::class, 'show']);
-Route::get('/conversations/{conversation}/articles/{article}/version/{version}', [ArticleController::class, 'version']);
+Route::put('/conversations/{conversation}/articles/{article}', [ArticleController::class, 'update']);
 Route::get('/conversations/{conversation}/articles/{article}/export', [ArticleController::class, 'export']);
 
 Route::get('/conversations/{conversation}/chats', [ChatController::class, 'index']);

@@ -12,11 +12,7 @@ class ArticleController extends Controller
 {
     public function index(Conversation $conversation): JsonResponse
     {
-        $articles = $conversation->articles()
-            ->with(['versions' => function ($query) {
-                $query->latest()->limit(1);
-            }])
-            ->get();
+        $articles = $conversation->articles()->get();
 
         return response()->json($articles);
     }
@@ -27,23 +23,28 @@ class ArticleController extends Controller
             abort(404);
         }
 
-        return response()->json([
-            'article' => $article->load('versions'),
-            'current_version' => $article->getCurrentVersion(),
-        ]);
+        return response()->json($article);
     }
 
-    public function version(Conversation $conversation, Article $article, int $version): JsonResponse
+    public function update(Request $request, Conversation $conversation, Article $article): JsonResponse
     {
         if ($article->conversation_id !== $conversation->id) {
             abort(404);
         }
 
-        $articleVersion = $article->versions()
-            ->where('version_number', $version)
-            ->firstOrFail();
+        $validated = $request->validate([
+            'title' => 'sometimes|string|max:255',
+            'content' => 'sometimes|string',
+            'outline' => 'sometimes|array',
+            'status' => 'sometimes|in:planning,researching,writing,reviewing,completed',
+        ]);
 
-        return response()->json($articleVersion);
+        $article->update($validated);
+
+        return response()->json([
+            'message' => 'Article updated successfully',
+            'article' => $article->fresh(),
+        ]);
     }
 
     public function export(Conversation $conversation, Article $article): JsonResponse
@@ -52,16 +53,14 @@ class ArticleController extends Controller
             abort(404);
         }
 
-        $currentVersion = $article->getCurrentVersion();
-
         return response()->json([
             'title' => $article->title,
-            'content' => $currentVersion ? $currentVersion->content : '',
+            'content' => $article->content ?? '',
             'metadata' => [
                 'created_at' => $article->created_at,
                 'updated_at' => $article->updated_at,
-                'version' => $article->current_version,
-                'word_count' => $currentVersion ? str_word_count($currentVersion->content) : 0,
+                'word_count' => $article->getWordCount(),
+                'status' => $article->status,
             ],
         ]);
     }

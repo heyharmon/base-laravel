@@ -26,10 +26,9 @@ class CreateArticleJob extends BaseAgentJob
             $article = $this->conversation->articles()->create([
                 'title' => $this->title,
                 'outline' => $this->outline,
+                'content' => '', // Initialize with empty content
                 'status' => 'planning',
             ]);
-
-            $article->createNewVersion('', 'Initial creation');
 
             $this->markJobCompleted([
                 'article_id' => $article->id,

@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Article extends Model
 {
@@ -15,7 +14,7 @@ class Article extends Model
         'conversation_id',
         'title',
         'outline',
-        'current_version',
+        'content',
         'status',
     ];
 
@@ -28,35 +27,19 @@ class Article extends Model
         return $this->belongsTo(Conversation::class);
     }
 
-    public function versions(): HasMany
+    /**
+     * Update the article content
+     */
+    public function updateContent(string $content): void
     {
-        return $this->hasMany(ArticleVersion::class);
+        $this->update(['content' => $content]);
     }
 
-    public function getCurrentVersion(): ?ArticleVersion
+    /**
+     * Get the word count of the article content
+     */
+    public function getWordCount(): int
     {
-        return $this->versions()
-            ->where('version_number', $this->current_version)
-            ->first();
-    }
-
-    public function createNewVersion(string $content, ?string $changeSummary = null): ArticleVersion
-    {
-        $this->increment('current_version');
-
-        return $this->versions()->create([
-            'version_number' => $this->current_version,
-            'content' => $content,
-            'change_summary' => $changeSummary,
-            'metadata' => [
-                'word_count' => str_word_count($content),
-                'created_at' => now(),
-            ],
-        ]);
-    }
-
-    public function updateContent(string $content, ?string $changeSummary = null): void
-    {
-        $this->createNewVersion($content, $changeSummary);
+        return $this->content ? str_word_count($this->content) : 0;
     }
 }

@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('conversation_id')->constrained()->onDelete('cascade');
             $table->string('title');
             $table->json('outline')->nullable();
-            $table->integer('current_version')->default(1);
+            $table->longText('content')->nullable();
             $table->enum('status', ['planning', 'researching', 'writing', 'reviewing', 'completed'])->default('planning');
             $table->timestamps();
         });

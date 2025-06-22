@@ -31,13 +31,10 @@ class WriteArticleSectionJob extends BaseAgentJob
 
         try {
             $article = Article::findOrFail($this->articleId);
-            $currentVersion = $article->getCurrentVersion();
-            $currentContent = $currentVersion ? $currentVersion->content : '';
+            $currentContent = $article->content ?? '';
             $updatedContent = $this->mergeSectionContent($currentContent, $this->section, $this->content);
-            $article->createNewVersion(
-                $updatedContent,
-                "Updated section: {$this->section}"
-            );
+            
+            $article->updateContent($updatedContent);
 
             if ($article->status === 'researching') {
                 $article->update(['status' => 'writing']);
@@ -46,8 +43,7 @@ class WriteArticleSectionJob extends BaseAgentJob
             $this->markJobCompleted([
                 'article_id' => $this->articleId,
                 'section' => $this->section,
-                'version' => $article->current_version,
-                'word_count' => str_word_count($this->content),
+                'word_count' => $article->getWordCount(),
             ]);
 
             $this->continueConversation(
