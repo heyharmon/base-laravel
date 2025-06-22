@@ -101,6 +101,15 @@ class OpenAIService
                     } elseif ($chat->function_name === 'fetch_webpage' && $chat->web_search_results) {
                         $recentResults .= "- Fetched webpage content:\n";
                         $recentResults .= "  Content: " . substr($chat->web_search_results, 0, 1000) . "...\n";
+                    } elseif ($chat->function_name === 'create_article' && $chat->function_response) {
+                        $response = $chat->function_response;
+                        $recentResults .= "- Created article '{$response['title']}' with ID {$response['article_id']}\n";
+                        $recentResults .= "  use this article id ({$response['article_id']}) for writing sections\n";
+                    } elseif ($chat->function_name === 'write_article_section' && $chat->function_response) {
+                        $response = $chat->function_response;
+                        $recentResults .= "- Updated article section '{$response['section']}' for article ID {$response['article_id']}\n";
+                        $recentResults .= "  Article version: {$response['version']}\n";
+                        $recentResults .= "  Word count: {$response['word_count']}\n";
                     }
                 }
             }
