@@ -4,14 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Article extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'conversation_id',
         'title',
         'outline',
         'content',
@@ -22,10 +20,6 @@ class Article extends Model
         'outline' => 'array',
     ];
 
-    public function conversation(): BelongsTo
-    {
-        return $this->belongsTo(Conversation::class);
-    }
 
     /**
      * Update the article content

@@ -4,38 +4,46 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Article;
-use App\Models\Conversation;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class ArticleController extends Controller
 {
-    public function index(Conversation $conversation): JsonResponse
+    public function index(): JsonResponse
     {
-        $articles = $conversation->articles()->get();
+        $articles = Article::all();
 
         return response()->json($articles);
     }
 
-    public function show(Conversation $conversation, Article $article): JsonResponse
+    public function show(Article $article): JsonResponse
     {
-        if ($article->conversation_id !== $conversation->id) {
-            abort(404);
-        }
-
         return response()->json($article);
     }
 
-    public function update(Request $request, Conversation $conversation, Article $article): JsonResponse
+    public function store(Request $request): JsonResponse
     {
-        if ($article->conversation_id !== $conversation->id) {
-            abort(404);
-        }
-
         $validated = $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'content' => 'sometimes|string',
-            'outline' => 'sometimes|array',
+            'title' => 'required|string|max:255',
+            'content' => 'nullable|string',
+            'outline' => 'nullable|array',
+            'status' => 'sometimes|in:planning,researching,writing,reviewing,completed',
+        ]);
+
+        $article = Article::create($validated);
+
+        return response()->json([
+            'message' => 'Article created successfully',
+            'article' => $article,
+        ], 201);
+    }
+
+    public function update(Request $request, Article $article): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => 'nullable|string|max:255',
+            'content' => 'nullable|string',
+            'outline' => 'nullable|array',
             'status' => 'sometimes|in:planning,researching,writing,reviewing,completed',
         ]);
 
@@ -47,12 +55,17 @@ class ArticleController extends Controller
         ]);
     }
 
-    public function export(Conversation $conversation, Article $article): JsonResponse
+    public function destroy(Article $article): JsonResponse
     {
-        if ($article->conversation_id !== $conversation->id) {
-            abort(404);
-        }
+        $article->delete();
 
+        return response()->json([
+            'message' => 'Article deleted successfully',
+        ]);
+    }
+
+    public function export(Article $article): JsonResponse
+    {
         return response()->json([
             'title' => $article->title,
             'content' => $article->content ?? '',

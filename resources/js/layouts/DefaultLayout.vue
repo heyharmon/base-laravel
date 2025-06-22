@@ -11,6 +11,7 @@
                 <h1 class="text-xl font-semibold">Laravel API with Vue 3</h1>
                 <nav>
                     <router-link to="/" class="px-4 py-2"> Chat </router-link>
+                    <router-link to="/articles" class="px-4 py-2">Articles</router-link>
                     <router-link to="/web-search" class="px-4 py-2"
                         >Web Search</router-link
                     >
