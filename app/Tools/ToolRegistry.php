@@ -1,16 +1,16 @@
 <?php
 
-namespace App\Services\AI;
+namespace App\Tools;
 
-use App\Services\AI\FunctionHandlers\FunctionHandler;
-use App\Services\AI\FunctionHandlers\UpdatePlanHandler;
-use App\Services\AI\FunctionHandlers\WebSearchHandler;
-use App\Services\AI\FunctionHandlers\FetchWebpageHandler;
-use App\Services\AI\FunctionHandlers\CreateArticleHandler;
-use App\Services\AI\FunctionHandlers\WriteArticleSectionHandler;
-use App\Services\AI\FunctionHandlers\ReviewArticleHandler;
+use App\Tools\Handlers\ToolHandler;
+use App\Tools\Handlers\UpdatePlanHandler;
+use App\Tools\Handlers\WebSearchHandler;
+use App\Tools\Handlers\FetchWebpageHandler;
+use App\Tools\Handlers\CreateArticleHandler;
+use App\Tools\Handlers\WriteArticleSectionHandler;
+use App\Tools\Handlers\ReviewArticleHandler;
 
-class FunctionRegistry
+class ToolRegistry
 {
     private array $handlers = [];
 
@@ -25,12 +25,12 @@ class FunctionRegistry
         $this->registerHandler(new ReviewArticleHandler());
     }
 
-    private function registerHandler(FunctionHandler $handler): void
+    private function registerHandler(ToolHandler $handler): void
     {
         $this->handlers[$handler->getName()] = $handler;
     }
 
-    public function getHandler(string $functionName): ?FunctionHandler
+    public function getHandler(string $functionName): ?ToolHandler
     {
         return $this->handlers[$functionName] ?? null;
     }

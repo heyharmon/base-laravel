@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\AI\FunctionHandlers;
+namespace App\Tools\Handlers;
 
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Jobs\UpdatePlanJob;
+use App\Tools\Jobs\UpdatePlanJob;
 
-class UpdatePlanHandler extends FunctionHandler
+class UpdatePlanHandler extends ToolHandler
 {
     protected string $name = 'update_plan';
 

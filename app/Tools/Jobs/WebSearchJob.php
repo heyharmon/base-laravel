@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
 use App\Services\FirecrawlService;
 use App\Models\Conversation;
 use App\Models\Chat;
 
-class WebSearchJob extends BaseAgentJob
+class WebSearchJob extends ToolJob
 {
     private string $query;
 

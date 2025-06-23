@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\AI\FunctionHandlers;
+namespace App\Tools\Handlers;
 
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Jobs\WebSearchJob;
+use App\Tools\Jobs\WebSearchJob;
 
-class WebSearchHandler extends FunctionHandler
+class WebSearchHandler extends ToolHandler
 {
     protected string $name = 'web_search';
 

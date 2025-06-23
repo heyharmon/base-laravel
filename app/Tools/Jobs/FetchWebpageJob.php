@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
 use App\Services\FirecrawlService;
 use App\Models\Conversation;
 use App\Models\Chat;
 
-class FetchWebpageJob extends BaseAgentJob
+class FetchWebpageJob extends ToolJob
 {
     private string $url;
 

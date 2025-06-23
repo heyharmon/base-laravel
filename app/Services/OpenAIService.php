@@ -6,7 +6,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 use App\Models\Chat;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
-use App\Services\AI\FunctionRegistry;
+use App\Tools\ToolRegistry;
 
 /**
  * OpenAI Service - Core AI Research and Writing Agent
@@ -28,13 +28,13 @@ use App\Services\AI\FunctionRegistry;
 class OpenAIService
 {
     /**
-     * Registry of available function handlers
+     * Registry of available tool handlers
      */
-    private FunctionRegistry $functionRegistry;
+    private ToolRegistry $toolRegistry;
 
     public function __construct()
     {
-        $this->functionRegistry = new FunctionRegistry();
+        $this->toolRegistry = new ToolRegistry();
     }
 
     /**
@@ -55,14 +55,14 @@ class OpenAIService
     {
         // Build the message array with system prompt, history, and current message
         $messages = $this->prepareMessages($conversation, $message, $context);
-        Log::info('OpenAI sendMessage', ['messages' => $messages]);
+        Log::info('OpenAI sendMessage', ['messages' => json_encode($messages)]);
 
         try {
             // Call OpenAI with function calling enabled
             $response = OpenAI::chat()->create([
                 'model' => 'gpt-4o',                    // Use GPT-4 Omni model
                 'messages' => $messages,                // Conversation context
-                'functions' => $this->functionRegistry->getAllDefinitions(), // Available tools
+                'functions' => $this->toolRegistry->getAllDefinitions(), // Available tools
                 'function_call' => 'auto',              // Let AI decide when to use functions
                 'temperature' => 0.7,                   // Balanced creativity/consistency
             ]);
@@ -163,24 +163,27 @@ class OpenAIService
                     // Show web search results with previews
                     if ($chat->function_name === 'web_search' && $chat->web_search_results) {
                         $recentResults .= "- Web search for '{$chat->function_arguments['query']}' returned:\n";
-                        foreach (array_slice($chat->web_search_results, 0, 3) as $result) {
+                        foreach (array_slice($chat->web_search_results, 0, 10) as $result) {
                             $recentResults .= "  * {$result['title']} ({$result['url']})\n";
                             if (!empty($result['content'])) {
-                                $recentResults .= "    Content preview: " . substr($result['content'], 0, 1000) . "...\n";
+                                $recentResults .= "    Search results: " . $result['content'] . "\n";
                             }
                         }
                     }
+
                     // Show fetched webpage content
                     elseif ($chat->function_name === 'fetch_webpage' && $chat->web_search_results) {
                         $recentResults .= "- Fetched webpage content:\n";
-                        $recentResults .= "  Content: " . substr($chat->web_search_results, 0, 1000) . "...\n";
+                        $recentResults .= "  Content preview: " . substr($chat->web_search_results, 0, 10000) . "...\n";
                     }
+
                     // Show created articles with their IDs (critical for subsequent section writing)
                     elseif ($chat->function_name === 'create_article' && $chat->function_response) {
                         $response = $chat->function_response;
                         $recentResults .= "- Created article '{$response['title']}' with ID {$response['article_id']}\n";
                         $recentResults .= "  use this article id ({$response['article_id']}) for writing sections\n";
                     }
+
                     // Show article section updates
                     elseif ($chat->function_name === 'write_article_section' && $chat->function_response) {
                         $response = $chat->function_response;
@@ -295,7 +298,7 @@ PROMPT;
             'function_arguments' => $arguments,
         ]);
 
-        $handler = $this->functionRegistry->getHandler($functionName);
+        $handler = $this->toolRegistry->getHandler($functionName);
 
         if (!$handler) {
             Log::error('Unknown function called', ['function' => $functionName]);

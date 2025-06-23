@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\AI\FunctionHandlers;
+namespace App\Tools\Handlers;
 
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Jobs\FetchWebpageJob;
+use App\Tools\Jobs\FetchWebpageJob;
 
-class FetchWebpageHandler extends FunctionHandler
+class FetchWebpageHandler extends ToolHandler
 {
     protected string $name = 'fetch_webpage';
 

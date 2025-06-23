@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
 use App\Models\Article;
 use App\Models\Conversation;
 use App\Models\Chat;
 
-class WriteArticleSectionJob extends BaseAgentJob
+class WriteArticleSectionJob extends ToolJob
 {
     private int $articleId;
     private string $section;
@@ -33,7 +33,7 @@ class WriteArticleSectionJob extends BaseAgentJob
             $article = Article::findOrFail($this->articleId);
             $currentContent = $article->content ?? '';
             $updatedContent = $this->mergeSectionContent($currentContent, $this->section, $this->content);
-            
+
             $article->updateContent($updatedContent);
 
             if ($article->status === 'researching') {

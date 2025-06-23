@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Services\AI\FunctionHandlers;
+namespace App\Tools\Handlers;
 
 use App\Models\Conversation;
 use App\Models\Chat;
 
-class FunctionHandler
+class ToolHandler
 {
     protected string $name;
     protected array $definition;

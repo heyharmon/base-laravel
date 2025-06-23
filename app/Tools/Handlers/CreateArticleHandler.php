@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\AI\FunctionHandlers;
+namespace App\Tools\Handlers;
 
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Jobs\CreateArticleJob;
+use App\Tools\Jobs\CreateArticleJob;
 
-class CreateArticleHandler extends FunctionHandler
+class CreateArticleHandler extends ToolHandler
 {
     protected string $name = 'create_article';
 
