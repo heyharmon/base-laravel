@@ -211,6 +211,20 @@ class OpenAIService
                         $recentResults .= "- Updated article section '{$response['section']}' for article ID {$response['article_id']}\n";
                         $recentResults .= "  Word count: {$response['word_count']}\n";
                     }
+
+                    // Show article data from view_article tool
+                    elseif ($chat->function_name === 'view_article' && $chat->function_response) {
+                        $article = $chat->function_response['article'];
+                        $recentResults .= "- Viewed article of id {$article['id']}: Title '{$article['title']}'\n";
+                        $recentResults .= "  Content: \n{$article['content']}\n";
+
+                        if (!empty($article['outline'])) {
+                            $recentResults .= "  Outline: \n";
+                            foreach ($article['outline'] as $section) {
+                                $recentResults .= "    - {$section}\n";
+                            }
+                        }
+                    }
                 }
             }
         }

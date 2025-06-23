@@ -24,42 +24,26 @@ class ReviewArticleJob extends ToolJob
         try {
             $article = Article::findOrFail($this->articleId);
 
-            $article->update(['status' => 'reviewing']);
-
-            $reviewAnalysis = [
-                'word_count' => str_word_count($article->content),
-                'sections_completed' => $this->countCompletedSections($article->content, $article->outline),
-                'has_citations' => $this->checkForCitations($article->content),
-                'coherence_check' => 'Pending AI review',
+            $articleData = [
+                'id' => $article->id,
+                'title' => $article->title,
+                'content' => $article->content,
+                'outline' => $article->outline,
+                'status' => $article->status,
+                'created_at' => $article->created_at,
+                'updated_at' => $article->updated_at,
             ];
 
             $this->markJobCompleted([
-                'article_id' => $this->articleId,
-                'review_analysis' => $reviewAnalysis,
+                'article' => $articleData,
             ]);
 
             $this->continueConversation(
-                "Article review completed. The article has {$reviewAnalysis['word_count']} words and {$reviewAnalysis['sections_completed']} completed sections."
+                "Successfully viewed article of id {$article->id}: Title '{$article->title}'. Full article content available in last system message."
             );
         } catch (\Exception $e) {
             $this->markJobFailed($e);
             throw $e;
         }
-    }
-
-    private function countCompletedSections(string $content, array $outline): int
-    {
-        $completed = 0;
-        foreach ($outline as $section) {
-            if (strpos($content, "## {$section}") !== false) {
-                $completed++;
-            }
-        }
-        return $completed;
-    }
-
-    private function checkForCitations(string $content): bool
-    {
-        return preg_match('/\[\d+\]|\([A-Za-z]+,?\s*\d{4}\)/', $content) > 0;
     }
 }

@@ -40,7 +40,7 @@ class FetchWebpageJob extends ToolJob
             ]);
 
             $this->continueConversation(
-                "Successfully fetched webpage content from {$this->url}. The page contains " . strlen($pageData['content'] ?? '') . " characters of markdown content."
+                "Successfully fetched webpage content from {$this->url}. The page contains " . strlen($pageData['content'] ?? '') . " characters of markdown content. The page content is available in last system message."
             );
         } catch (\Exception $e) {
             $this->markJobFailed($e);

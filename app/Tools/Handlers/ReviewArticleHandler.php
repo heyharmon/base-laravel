@@ -9,17 +9,17 @@ use App\Models\Chat;
 
 class ReviewArticleHandler extends ToolHandler
 {
-    protected string $name = 'review_article';
+    protected string $name = 'view_article';
 
     protected array $definition = [
-        'name' => 'review_article',
-        'description' => 'Review an article for coherence, accuracy, and completeness. When article context is provided, use that article_id.',
+        'name' => 'view_article',
+        'description' => 'View an article properties including title, content, outline, and status. When article context is provided, use that article_id.',
         'parameters' => [
             'type' => 'object',
             'properties' => [
                 'article_id' => [
                     'type' => 'integer',
-                    'description' => 'The article ID to review (use the ID from context if available)',
+                    'description' => 'The article ID to view (use the ID from context if available)',
                 ],
             ],
             'required' => ['article_id'],
@@ -29,7 +29,7 @@ class ReviewArticleHandler extends ToolHandler
     public function validate(array $arguments): bool
     {
         if (!isset($arguments['article_id'])) {
-            $this->validationError = 'Missing article_id in review_article function call';
+            $this->validationError = 'Missing article_id in view_article function call';
             return false;
         }
         return true;

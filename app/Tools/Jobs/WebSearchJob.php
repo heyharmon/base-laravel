@@ -41,7 +41,7 @@ class WebSearchJob extends ToolJob
             ]);
 
             $this->continueConversation(
-                "Web search completed for '{$this->query}'. Found " . count($results) . ' results.'
+                "Web search completed for '{$this->query}'. Found " . count($results) . ' results. The results are available in last system message.'
             );
         } catch (\Exception $e) {
             $this->markJobFailed($e);

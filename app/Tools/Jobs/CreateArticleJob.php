@@ -37,7 +37,7 @@ class CreateArticleJob extends ToolJob
             ]);
 
             $this->continueConversation(
-                "Created new article '{$this->title}' with " . count($this->outline) . ' sections.'
+                "Successfully created new article '{$this->title}' with " . count($this->outline) . ' sections.'
             );
         } catch (\Exception $e) {
             $this->markJobFailed($e);
