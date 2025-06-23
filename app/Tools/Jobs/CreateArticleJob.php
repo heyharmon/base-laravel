@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
 use App\Models\Conversation;
 use App\Models\Chat;
 use App\Models\Article;
 
-class CreateArticleJob extends BaseAgentJob
+class CreateArticleJob extends ToolJob
 {
     private string $title;
     private array $outline;

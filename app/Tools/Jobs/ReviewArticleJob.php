@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
 use App\Models\Article;
 use App\Services\OpenAIService;
 use App\Models\Conversation;
 use App\Models\Chat;
 
-class ReviewArticleJob extends BaseAgentJob
+class ReviewArticleJob extends ToolJob
 {
     private int $articleId;
 

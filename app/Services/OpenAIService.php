@@ -6,24 +6,18 @@ use OpenAI\Laravel\Facades\OpenAI;
 use App\Models\Chat;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
-use App\Jobs\UpdatePlanJob;
-use App\Jobs\WebSearchJob;
-use App\Jobs\FetchWebpageJob;
-use App\Jobs\WriteArticleSectionJob;
-use App\Jobs\CreateArticleJob;
-use App\Jobs\ReviewArticleJob;
-use App\Jobs\ContinueConversationJob;
+use App\Tools\ToolRegistry;
 
 /**
  * OpenAI Service - Core AI Research and Writing Agent
- * 
+ *
  * This service orchestrates AI-powered research and article writing workflows.
  * It integrates with OpenAI's GPT-4 model using function calling to enable:
  * - Web research and content fetching
  * - Structured article creation and management
  * - Plan-driven task execution
  * - Asynchronous job processing for long-running tasks
- * 
+ *
  * Architecture:
  * 1. Receives user messages through sendMessage()
  * 2. Builds context from conversation history and recent function results
@@ -34,26 +28,24 @@ use App\Jobs\ContinueConversationJob;
 class OpenAIService
 {
     /**
-     * Available function definitions for OpenAI function calling
-     * Defines what tools the AI can use (web search, article writing, etc.)
+     * Registry of available tool handlers
      */
-    private array $functions;
+    private ToolRegistry $toolRegistry;
 
     public function __construct()
     {
-        // Initialize the function definitions that the AI can call
-        $this->functions = $this->getAvailableFunctions();
+        $this->toolRegistry = new ToolRegistry();
     }
 
     /**
      * Main entry point for sending messages to the AI agent
-     * 
+     *
      * This method orchestrates the entire AI interaction flow:
      * 1. Prepares message context from conversation history
      * 2. Sends request to OpenAI with function calling enabled
      * 3. Processes the response and handles any function calls
      * 4. Returns the created chat record and follow-up information
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param string $message The user's message
      * @param array $context Additional context (e.g., 'job_completed' from background jobs)
@@ -63,13 +55,14 @@ class OpenAIService
     {
         // Build the message array with system prompt, history, and current message
         $messages = $this->prepareMessages($conversation, $message, $context);
+        Log::info('OpenAI sendMessage', ['messages' => json_encode($messages)]);
 
         try {
             // Call OpenAI with function calling enabled
             $response = OpenAI::chat()->create([
                 'model' => 'gpt-4o',                    // Use GPT-4 Omni model
                 'messages' => $messages,                // Conversation context
-                'functions' => $this->functions,        // Available tools/functions
+                'functions' => $this->toolRegistry->getAllDefinitions(), // Available tools
                 'function_call' => 'auto',              // Let AI decide when to use functions
                 'temperature' => 0.7,                   // Balanced creativity/consistency
             ]);
@@ -84,12 +77,12 @@ class OpenAIService
 
     /**
      * Prepares the message array for OpenAI API call
-     * 
+     *
      * Builds a structured conversation context including:
      * 1. System prompt with capabilities and recent function results
      * 2. Recent conversation history (last 10 messages)
      * 3. Current user message
-     * 
+     *
      * @param Conversation $conversation The conversation to build context from
      * @param string $message The current user message
      * @param array $context Additional context flags (e.g., job completion signals)
@@ -132,16 +125,16 @@ class OpenAIService
 
     /**
      * Generates the system prompt that defines the AI's role and capabilities
-     * 
+     *
      * This prompt is crucial - it defines:
      * 1. The AI's identity as a research and writing agent
      * 2. Current conversation plan and progress
      * 3. Recent function call results (critical for seeing previous work)
      * 4. Guidelines and workflow instructions
-     * 
+     *
      * The dynamic inclusion of recent results solves the "invisible function results" problem
      * by explicitly showing the AI what was accomplished in previous function calls.
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param array $context Context flags indicating when to include function results
      * @return string The complete system prompt
@@ -170,24 +163,27 @@ class OpenAIService
                     // Show web search results with previews
                     if ($chat->function_name === 'web_search' && $chat->web_search_results) {
                         $recentResults .= "- Web search for '{$chat->function_arguments['query']}' returned:\n";
-                        foreach (array_slice($chat->web_search_results, 0, 3) as $result) {
+                        foreach (array_slice($chat->web_search_results, 0, 10) as $result) {
                             $recentResults .= "  * {$result['title']} ({$result['url']})\n";
                             if (!empty($result['content'])) {
-                                $recentResults .= "    Content preview: " . substr($result['content'], 0, 200) . "...\n";
+                                $recentResults .= "    Search results: " . $result['content'] . "\n";
                             }
                         }
-                    } 
+                    }
+
                     // Show fetched webpage content
                     elseif ($chat->function_name === 'fetch_webpage' && $chat->web_search_results) {
                         $recentResults .= "- Fetched webpage content:\n";
-                        $recentResults .= "  Content: " . substr($chat->web_search_results, 0, 1000) . "...\n";
-                    } 
+                        $recentResults .= "  Content preview: " . substr($chat->web_search_results, 0, 10000) . "...\n";
+                    }
+
                     // Show created articles with their IDs (critical for subsequent section writing)
                     elseif ($chat->function_name === 'create_article' && $chat->function_response) {
                         $response = $chat->function_response;
                         $recentResults .= "- Created article '{$response['title']}' with ID {$response['article_id']}\n";
                         $recentResults .= "  use this article id ({$response['article_id']}) for writing sections\n";
-                    } 
+                    }
+
                     // Show article section updates
                     elseif ($chat->function_name === 'write_article_section' && $chat->function_response) {
                         $response = $chat->function_response;
@@ -230,14 +226,14 @@ PROMPT;
 
     /**
      * Processes OpenAI API response and handles function calls
-     * 
+     *
      * This method:
      * 1. Extracts the AI's response message and usage statistics
      * 2. Creates a Chat record to persist the conversation
      * 3. Calculates and tracks token costs
      * 4. Dispatches background jobs for any function calls
      * 5. Returns the chat record and follow-up information
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param mixed $response OpenAI API response object
      * @return array ['chat' => Chat, 'needsFollowUp' => bool]
@@ -277,16 +273,16 @@ PROMPT;
 
     /**
      * Dispatches background jobs for AI function calls
-     * 
+     *
      * When the AI decides to use a tool (function), this method:
      * 1. Extracts and validates the function parameters
      * 2. Updates the chat record with function details
      * 3. Dispatches the appropriate job to handle the function execution
      * 4. Provides error logging for missing or invalid parameters
-     * 
+     *
      * The jobs run asynchronously and use ContinueConversationJob to resume
      * the conversation when they complete.
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param Chat $chat The chat record for this function call
      * @param mixed $functionCall OpenAI function call object
@@ -302,240 +298,18 @@ PROMPT;
             'function_arguments' => $arguments,
         ]);
 
-        // Dispatch the appropriate job based on function name
-        // Each case validates required parameters and provides helpful error logging
-        switch ($functionName) {
-            case 'update_plan':
-                // Updates the conversation's research/writing plan
-                if (isset($arguments['plan'])) {
-                    UpdatePlanJob::dispatch($conversation, $arguments['plan']);
-                } else {
-                    Log::warning('Missing or empty plan in update_plan function call', ['arguments' => $arguments]);
-                }
-                break;
+        $handler = $this->toolRegistry->getHandler($functionName);
 
-            case 'web_search':
-                // Searches the web using Firecrawl service
-                if (isset($arguments['query'])) {
-                    WebSearchJob::dispatch($conversation, $chat, $arguments['query']);
-                } else {
-                    Log::warning('Missing query in web_search function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'fetch_webpage':
-                // Fetches and converts webpage content to markdown
-                if (isset($arguments['url'])) {
-                    FetchWebpageJob::dispatch($conversation, $chat, $arguments['url']);
-                } else {
-                    Log::warning('Missing url in fetch_webpage function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'write_article_section':
-                // Writes or updates a section of an existing article
-                if (isset($arguments['article_id']) && isset($arguments['section']) && isset($arguments['content'])) {
-                    WriteArticleSectionJob::dispatch(
-                        $conversation,
-                        $chat,
-                        $arguments['article_id'],
-                        $arguments['section'],
-                        $arguments['content']
-                    );
-                } else {
-                    Log::warning('Missing required parameters in write_article_section function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'create_article':
-                // Creates a new article with title and outline structure
-                if (isset($arguments['title']) && isset($arguments['outline'])) {
-                    CreateArticleJob::dispatch(
-                        $conversation,
-                        $chat,
-                        $arguments['title'],
-                        $arguments['outline']
-                    );
-                } else {
-                    Log::warning('Missing required parameters in create_article function call', ['arguments' => $arguments]);
-                }
-                break;
-
-            case 'review_article':
-                // Reviews an article for quality, coherence, and completeness
-                if (isset($arguments['article_id'])) {
-                    ReviewArticleJob::dispatch(
-                        $conversation,
-                        $chat,
-                        $arguments['article_id']
-                    );
-                } else {
-                    Log::warning('Missing article_id in review_article function call', ['arguments' => $arguments]);
-                }
-                break;
+        if (!$handler) {
+            Log::error('Unknown function called', ['function' => $functionName]);
+            return;
         }
-    }
 
-    /**
-     * Defines the available functions (tools) that the AI can call
-     * 
-     * This method returns the OpenAI function calling schema that defines:
-     * - What functions are available to the AI
-     * - Parameter requirements and types for each function
-     * - Descriptions to help the AI understand when and how to use each tool
-     * 
-     * The function definitions follow OpenAI's JSON Schema format for function calling.
-     * Each function maps to a corresponding Job class that handles the actual execution.
-     * 
-     * Available Functions:
-     * - update_plan: Updates research/writing plans
-     * - web_search: Searches the web via Firecrawl
-     * - fetch_webpage: Fetches and converts webpage content
-     * - create_article: Creates new articles with structure
-     * - write_article_section: Writes/updates article sections
-     * - review_article: Reviews articles for quality
-     * 
-     * @return array Array of function definitions in OpenAI format
-     */
-    private function getAvailableFunctions(): array
-    {
-        return [
-            // Plan Management Function
-            [
-                'name' => 'update_plan',
-                'description' => 'Update the current research and writing plan with specific steps and progress',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'plan' => [
-                            'type' => 'object',
-                            'description' => 'The updated plan object containing steps, goals, or progress. Must not be empty.',
-                            'properties' => [
-                                'steps' => [
-                                    'type' => 'array',
-                                    'description' => 'List of steps or tasks in the plan',
-                                    'items' => ['type' => 'string']
-                                ],
-                                'goal' => [
-                                    'type' => 'string',
-                                    'description' => 'The main goal or objective'
-                                ],
-                                'status' => [
-                                    'type' => 'string',
-                                    'description' => 'Current status of the plan'
-                                ],
-                                'notes' => [
-                                    'type' => 'string',
-                                    'description' => 'Additional notes or context'
-                                ]
-                            ],
-                            'minProperties' => 1 // Prevents empty plan objects
-                        ],
-                    ],
-                    'required' => ['plan'],
-                ],
-            ],
-            // Web Research Functions
-            [
-                'name' => 'web_search',
-                'description' => 'Search the web for information',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'query' => [
-                            'type' => 'string',
-                            'description' => 'The search query',
-                        ],
-                    ],
-                    'required' => ['query'],
-                ],
-            ],
-            [
-                'name' => 'fetch_webpage',
-                'description' => 'Fetch and extract content from a webpage',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'url' => [
-                            'type' => 'string',
-                            'description' => 'The URL to fetch',
-                        ],
-                    ],
-                    'required' => ['url'],
-                ],
-            ],
-            // Article Management Functions
-            // WORKFLOW: Always call create_article BEFORE write_article_section
-            [
-                'name' => 'create_article',
-                'description' => 'Create a new article with title and outline',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'title' => [
-                            'type' => 'string',
-                            'description' => 'The article title',
-                        ],
-                        'outline' => [
-                            'type' => 'array',
-                            'description' => 'The article outline structure',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'title' => [
-                                        'type' => 'string',
-                                        'description' => 'Section title'
-                                    ],
-                                    'subsections' => [
-                                        'type' => 'array',
-                                        'description' => 'Optional subsections',
-                                        'items' => [
-                                            'type' => 'string'
-                                        ]
-                                    ]
-                                ]
-                            ]
-                        ],
-                    ],
-                    'required' => ['title', 'outline'],
-                ],
-            ],
-            [
-                'name' => 'write_article_section',
-                'description' => 'Write or update a section of an article',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'article_id' => [
-                            'type' => 'integer',
-                            'description' => 'The article ID', // Must exist from create_article
-                        ],
-                        'section' => [
-                            'type' => 'string',
-                            'description' => 'The section identifier',
-                        ],
-                        'content' => [
-                            'type' => 'string',
-                            'description' => 'The content for this section',
-                        ],
-                    ],
-                    'required' => ['article_id', 'section', 'content'],
-                ],
-            ],
-            [
-                'name' => 'review_article',
-                'description' => 'Review an article for coherence, accuracy, and completeness',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'article_id' => [
-                            'type' => 'integer',
-                            'description' => 'The article ID to review',
-                        ],
-                    ],
-                    'required' => ['article_id'],
-                ],
-            ],
-        ];
+        if (!$handler->validate($arguments)) {
+            Log::warning($handler->getValidationError(), ['arguments' => $arguments]);
+            return;
+        }
+
+        $handler->handle($conversation, $chat, $arguments);
     }
 }

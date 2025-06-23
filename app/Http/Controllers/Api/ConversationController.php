@@ -19,9 +19,7 @@ class ConversationController extends Controller
 
     public function index(): JsonResponse
     {
-        $conversations = Conversation::with(['articles', 'chats' => function ($query) {
-            $query->latest()->limit(1);
-        }])
+        $conversations = Conversation::with('chats')
             ->latest()
             ->paginate(20);
 
@@ -47,7 +45,7 @@ class ConversationController extends Controller
         $this->openai->sendMessage($conversation, $validated['initial_message']);
 
         return response()->json([
-            'conversation' => $conversation->load('chats', 'articles'),
+            'conversation' => $conversation->load('chats'),
         ], 201);
     }
 
@@ -58,7 +56,6 @@ class ConversationController extends Controller
                 'chats' => function ($query) {
                     $query->orderBy('created_at');
                 },
-                'articles.versions',
             ]),
             'active_jobs' => $conversation->getActiveJobs(),
         ]);
@@ -89,7 +86,6 @@ class ConversationController extends Controller
             'total_tokens' => $conversation->total_tokens_used,
             'total_cost' => $conversation->total_cost,
             'chat_count' => $conversation->chats()->count(),
-            'article_count' => $conversation->articles()->count(),
             'active_jobs' => $conversation->getActiveJobs()->count(),
             'plan' => $conversation->agent_plan,
         ]);

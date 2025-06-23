@@ -1,16 +1,17 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
-use App\Models\Chat;
-use App\Models\Conversation;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Bus\Queueable;
+use App\Models\Conversation;
+use App\Models\Chat;
+use App\Jobs\ContinueConversationJob;
 
-abstract class BaseAgentJob implements ShouldQueue
+abstract class ToolJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Tools\Jobs;
 
 use App\Models\Conversation;
 use Illuminate\Bus\Queueable;
