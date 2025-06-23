@@ -85,7 +85,7 @@ class OpenAIService
      *
      * @param Conversation $conversation The conversation to build context from
      * @param string $message The current user message
-     * @param array $context Additional context flags (e.g., job completion signals)
+     * @param array $context Additional context flags (e.g., job completion signals, article context)
      * @return array Formatted messages array for OpenAI API
      */
     private function prepareMessages(Conversation $conversation, string $message, array $context): array
@@ -144,6 +144,21 @@ class OpenAIService
         // Include the current research/writing plan
         $plan = $conversation->agent_plan ? json_encode($conversation->agent_plan) : 'No plan yet';
 
+        // Extract article context if provided
+        $articleContext = '';
+        if (isset($context['article_id'])) {
+            $articleContext = "\n\nCurrent Article Context:";
+            $articleContext .= "\n- Article ID: {$context['article_id']} (IMPORTANT: Use this ID for all article operations)";
+            if (isset($context['article_title'])) {
+                $articleContext .= "\n- Title: {$context['article_title']}";
+            }
+            if (isset($context['article_status'])) {
+                $articleContext .= "\n- Status: {$context['article_status']}";
+            }
+            $articleContext .= "\n- You are currently helping edit this specific article";
+            $articleContext .= "\n- When using write_article_section or review_article functions, ALWAYS use article_id: {$context['article_id']}";
+        }
+
         // Build recent function results section
         // This is CRITICAL for function call visibility - without this, the AI can't see
         // the results of web searches, webpage fetches, or article creations
@@ -169,6 +184,12 @@ class OpenAIService
                                 $recentResults .= "    Search results: " . $result['content'] . "\n";
                             }
                         }
+                    }
+
+                    // Show updated plan
+                    elseif ($chat->function_name === 'update_plan' && $chat->function_response) {
+                        $recentResults .= "- Plan updated:\n";
+                        $recentResults .= "  Plan: " . json_encode($chat->function_response['plan'], JSON_PRETTY_PRINT) . "\n";
                     }
 
                     // Show fetched webpage content
@@ -197,7 +218,7 @@ class OpenAIService
         return <<<PROMPT
 You are an advanced research and writing agent. Your primary goal is to help users create comprehensive, well-researched articles.
 
-Current conversation plan: {$plan}{$recentResults}
+Current conversation plan: {$plan}{$articleContext}{$recentResults}
 
 Your capabilities:
 1. Create and update research plans
@@ -213,7 +234,7 @@ Guidelines:
 - Include accurate citations in your articles
 - Regularly review and improve your work
 - Be transparent about your reasoning and progress
-- USE THE RECENT FUNCTION CALL RESULTS SHOWN ABOVE when they are available
+- Use the recent function call results shown above when they are available
 
 When writing articles:
 - Follow the outline structure
@@ -221,6 +242,7 @@ When writing articles:
 - Research thoroughly before writing each section
 - Review and revise as needed
 - Ensure coherence across sections
+- If an article_id is provided in the context, use that ID for all article operations
 PROMPT;
     }
 

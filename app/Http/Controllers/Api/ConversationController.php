@@ -31,6 +31,10 @@ class ConversationController extends Controller
         $validated = $request->validate([
             'title' => 'nullable|string|max:255',
             'initial_message' => 'required|string',
+            'context' => 'nullable|array',
+            'context.article_id' => 'nullable|integer|exists:articles,id',
+            'context.article_title' => 'nullable|string',
+            'context.article_status' => 'nullable|string',
         ]);
 
         $conversation = Conversation::create([
@@ -42,7 +46,9 @@ class ConversationController extends Controller
             'content' => $validated['initial_message'],
         ]);
 
-        $this->openai->sendMessage($conversation, $validated['initial_message']);
+        // Pass context to OpenAI service
+        $context = $validated['context'] ?? [];
+        $this->openai->sendMessage($conversation, $validated['initial_message'], $context);
 
         return response()->json([
             'conversation' => $conversation->load('chats'),
@@ -65,6 +71,10 @@ class ConversationController extends Controller
     {
         $validated = $request->validate([
             'message' => 'required|string',
+            'context' => 'nullable|array',
+            'context.article_id' => 'nullable|integer|exists:articles,id',
+            'context.article_title' => 'nullable|string',
+            'context.article_status' => 'nullable|string',
         ]);
 
         $conversation->chats()->create([
@@ -72,7 +82,9 @@ class ConversationController extends Controller
             'content' => $validated['message'],
         ]);
 
-        $this->openai->sendMessage($conversation, $validated['message']);
+        // Pass context to OpenAI service
+        $context = $validated['context'] ?? [];
+        $this->openai->sendMessage($conversation, $validated['message'], $context);
 
         return response()->json([
             'success' => true,
@@ -86,7 +98,7 @@ class ConversationController extends Controller
             'total_tokens' => $conversation->total_tokens_used,
             'total_cost' => $conversation->total_cost,
             'chat_count' => $conversation->chats()->count(),
-            'active_jobs' => $conversation->getActiveJobs()->count(),
+            'active_jobs' => $conversation->getActiveJobs(),
             'plan' => $conversation->agent_plan,
         ]);
     }

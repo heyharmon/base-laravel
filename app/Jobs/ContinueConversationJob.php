@@ -18,11 +18,13 @@ class ContinueConversationJob implements ShouldQueue
 
     private Conversation $conversation;
     private string $message;
+    private array $context;
 
-    public function __construct(Conversation $conversation, string $message)
+    public function __construct(Conversation $conversation, string $message, array $context = [])
     {
         $this->conversation = $conversation;
         $this->message = $message;
+        $this->context = $context;
     }
 
     public function handle(OpenAIService $openai): void
@@ -33,8 +35,11 @@ class ContinueConversationJob implements ShouldQueue
             return;
         }
 
-        $openai->sendMessage($this->conversation, $this->message, [
+        // Merge job_completed context with any article context
+        $fullContext = array_merge($this->context, [
             'context' => 'job_completed',
         ]);
+
+        $openai->sendMessage($this->conversation, $this->message, $fullContext);
     }
 }

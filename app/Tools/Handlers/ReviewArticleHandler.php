@@ -2,9 +2,10 @@
 
 namespace App\Tools\Handlers;
 
+use App\Tools\Jobs\ReviewArticleJob;
+use App\Tools\Handlers\ToolHandler;
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Tools\Jobs\ReviewArticleJob;
 
 class ReviewArticleHandler extends ToolHandler
 {
@@ -12,13 +13,13 @@ class ReviewArticleHandler extends ToolHandler
 
     protected array $definition = [
         'name' => 'review_article',
-        'description' => 'Review an article for coherence, accuracy, and completeness',
+        'description' => 'Review an article for coherence, accuracy, and completeness. When article context is provided, use that article_id.',
         'parameters' => [
             'type' => 'object',
             'properties' => [
                 'article_id' => [
                     'type' => 'integer',
-                    'description' => 'The article ID to review',
+                    'description' => 'The article ID to review (use the ID from context if available)',
                 ],
             ],
             'required' => ['article_id'],

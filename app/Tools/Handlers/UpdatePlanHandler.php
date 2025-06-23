@@ -2,9 +2,10 @@
 
 namespace App\Tools\Handlers;
 
+use App\Tools\Jobs\UpdatePlanJob;
+use App\Tools\Handlers\ToolHandler;
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Tools\Jobs\UpdatePlanJob;
 
 class UpdatePlanHandler extends ToolHandler
 {

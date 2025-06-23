@@ -2,9 +2,10 @@
 
 namespace App\Tools\Handlers;
 
+use App\Tools\Jobs\FetchWebpageJob;
+use App\Tools\Handlers\ToolHandler;
 use App\Models\Conversation;
 use App\Models\Chat;
-use App\Tools\Jobs\FetchWebpageJob;
 
 class FetchWebpageHandler extends ToolHandler
 {
