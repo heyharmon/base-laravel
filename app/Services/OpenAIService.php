@@ -10,14 +10,14 @@ use App\Services\AI\FunctionRegistry;
 
 /**
  * OpenAI Service - Core AI Research and Writing Agent
- * 
+ *
  * This service orchestrates AI-powered research and article writing workflows.
  * It integrates with OpenAI's GPT-4 model using function calling to enable:
  * - Web research and content fetching
  * - Structured article creation and management
  * - Plan-driven task execution
  * - Asynchronous job processing for long-running tasks
- * 
+ *
  * Architecture:
  * 1. Receives user messages through sendMessage()
  * 2. Builds context from conversation history and recent function results
@@ -39,13 +39,13 @@ class OpenAIService
 
     /**
      * Main entry point for sending messages to the AI agent
-     * 
+     *
      * This method orchestrates the entire AI interaction flow:
      * 1. Prepares message context from conversation history
      * 2. Sends request to OpenAI with function calling enabled
      * 3. Processes the response and handles any function calls
      * 4. Returns the created chat record and follow-up information
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param string $message The user's message
      * @param array $context Additional context (e.g., 'job_completed' from background jobs)
@@ -55,6 +55,7 @@ class OpenAIService
     {
         // Build the message array with system prompt, history, and current message
         $messages = $this->prepareMessages($conversation, $message, $context);
+        Log::info('OpenAI sendMessage', ['messages' => $messages]);
 
         try {
             // Call OpenAI with function calling enabled
@@ -76,12 +77,12 @@ class OpenAIService
 
     /**
      * Prepares the message array for OpenAI API call
-     * 
+     *
      * Builds a structured conversation context including:
      * 1. System prompt with capabilities and recent function results
      * 2. Recent conversation history (last 10 messages)
      * 3. Current user message
-     * 
+     *
      * @param Conversation $conversation The conversation to build context from
      * @param string $message The current user message
      * @param array $context Additional context flags (e.g., job completion signals)
@@ -124,16 +125,16 @@ class OpenAIService
 
     /**
      * Generates the system prompt that defines the AI's role and capabilities
-     * 
+     *
      * This prompt is crucial - it defines:
      * 1. The AI's identity as a research and writing agent
      * 2. Current conversation plan and progress
      * 3. Recent function call results (critical for seeing previous work)
      * 4. Guidelines and workflow instructions
-     * 
+     *
      * The dynamic inclusion of recent results solves the "invisible function results" problem
      * by explicitly showing the AI what was accomplished in previous function calls.
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param array $context Context flags indicating when to include function results
      * @return string The complete system prompt
@@ -165,21 +166,21 @@ class OpenAIService
                         foreach (array_slice($chat->web_search_results, 0, 3) as $result) {
                             $recentResults .= "  * {$result['title']} ({$result['url']})\n";
                             if (!empty($result['content'])) {
-                                $recentResults .= "    Content preview: " . substr($result['content'], 0, 200) . "...\n";
+                                $recentResults .= "    Content preview: " . substr($result['content'], 0, 1000) . "...\n";
                             }
                         }
-                    } 
+                    }
                     // Show fetched webpage content
                     elseif ($chat->function_name === 'fetch_webpage' && $chat->web_search_results) {
                         $recentResults .= "- Fetched webpage content:\n";
                         $recentResults .= "  Content: " . substr($chat->web_search_results, 0, 1000) . "...\n";
-                    } 
+                    }
                     // Show created articles with their IDs (critical for subsequent section writing)
                     elseif ($chat->function_name === 'create_article' && $chat->function_response) {
                         $response = $chat->function_response;
                         $recentResults .= "- Created article '{$response['title']}' with ID {$response['article_id']}\n";
                         $recentResults .= "  use this article id ({$response['article_id']}) for writing sections\n";
-                    } 
+                    }
                     // Show article section updates
                     elseif ($chat->function_name === 'write_article_section' && $chat->function_response) {
                         $response = $chat->function_response;
@@ -222,14 +223,14 @@ PROMPT;
 
     /**
      * Processes OpenAI API response and handles function calls
-     * 
+     *
      * This method:
      * 1. Extracts the AI's response message and usage statistics
      * 2. Creates a Chat record to persist the conversation
      * 3. Calculates and tracks token costs
      * 4. Dispatches background jobs for any function calls
      * 5. Returns the chat record and follow-up information
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param mixed $response OpenAI API response object
      * @return array ['chat' => Chat, 'needsFollowUp' => bool]
@@ -269,16 +270,16 @@ PROMPT;
 
     /**
      * Dispatches background jobs for AI function calls
-     * 
+     *
      * When the AI decides to use a tool (function), this method:
      * 1. Extracts and validates the function parameters
      * 2. Updates the chat record with function details
      * 3. Dispatches the appropriate job to handle the function execution
      * 4. Provides error logging for missing or invalid parameters
-     * 
+     *
      * The jobs run asynchronously and use ContinueConversationJob to resume
      * the conversation when they complete.
-     * 
+     *
      * @param Conversation $conversation The conversation context
      * @param Chat $chat The chat record for this function call
      * @param mixed $functionCall OpenAI function call object
@@ -308,5 +309,4 @@ PROMPT;
 
         $handler->handle($conversation, $chat, $arguments);
     }
-
 }
