@@ -11,6 +11,11 @@ const loadArticles = async () => {
         const response = await api.get("/articles");
         console.log("Articles loaded:", response);
         articles.value = response.data;
+
+        // Automatically select the latest article if articles exist
+        if (articles.value.length > 0) {
+            await selectArticle(articles.value[0]);
+        }
     } catch (error) {
         console.error("Error loading articles:", error);
     }
@@ -80,7 +85,7 @@ onMounted(() => {
             </div>
 
             <!-- Chat Panel -->
-            <div class="w-96 border-l border-gray-200 bg-gray-50 p-4">
+            <div class="w-96 border-l border-gray-200 bg-gray-50">
                 <ChatInterface :current-article="currentArticle" />
             </div>
         </div>

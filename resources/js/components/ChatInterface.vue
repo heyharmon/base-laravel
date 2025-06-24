@@ -21,9 +21,11 @@ const loadLatestConversation = async () => {
         if (response.data.length > 0) {
             const latestConversation = response.data[0];
             conversationId.value = latestConversation.id;
-            
+
             // Load the conversation details including chats
-            const conversationResponse = await api.get(`/conversations/${latestConversation.id}`);
+            const conversationResponse = await api.get(
+                `/conversations/${latestConversation.id}`
+            );
             chats.value = conversationResponse.data.chats || [];
         } else {
             // No conversations exist, create a new one
@@ -130,20 +132,19 @@ watch(
 
 <template>
     <div class="h-full flex flex-col">
-        <p>Conversation ID: {{ conversationId }}</p>
-        <div class="flex-1 flex flex-col bg-gray-50 rounded-lg overflow-hidden">
+        <div class="flex-1 flex flex-col overflow-hidden">
             <!-- Header -->
             <div
                 class="flex justify-between items-center p-4 bg-white border-b border-gray-200"
             >
                 <h3 class="text-lg font-semibold text-gray-800">
-                    AI Assistant
+                    Conversation {{ conversationId }}
                 </h3>
                 <button
                     @click="newConversation"
                     class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors"
                 >
-                    New Chat
+                    New
                 </button>
             </div>
 
