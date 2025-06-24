@@ -140,12 +140,12 @@ class OpenAIService
         // Call OpenAI
         Log::info('OpenAI Service: Calling OpenAI API', [
             'conversation_id' => $conversation->id,
-            'model' => 'gpt-4-turbo-preview',
+            'model' => 'o4-mini-2025-04-16',
             'tools_count' => count($this->tools)
         ]);
 
         $response = OpenAI::chat()->create([
-            'model' => 'gpt-4-turbo-preview',
+            'model' => 'o4-mini-2025-04-16',
             'messages' => $messages,
             'tools' => $this->tools,
             'tool_choice' => 'auto'
@@ -545,7 +545,7 @@ class OpenAIService
         ]);
 
         $response = OpenAI::chat()->create([
-            'model' => 'gpt-4-turbo-preview',
+            'model' => 'o4-mini-2025-04-16',
             'messages' => $messages,
             'tools' => $this->tools,
             'tool_choice' => 'auto'
