@@ -5,6 +5,7 @@ namespace App\Tools\Jobs;
 use App\Models\Conversation;
 use App\Models\Chat;
 use App\Models\Article;
+use App\Jobs\ContinueConversationJob;
 
 class CreateArticleJob extends ToolJob
 {
@@ -36,8 +37,14 @@ class CreateArticleJob extends ToolJob
                 'outline_sections' => count($this->outline),
             ]);
 
-            $this->continueConversation(
-                "Successfully created new article '{$this->title}' with " . count($this->outline) . ' sections.'
+            ContinueConversationJob::dispatch(
+                $this->conversation,
+                "Successfully created new article '{$this->title}' with " . count($this->outline) . ' sections.',
+                [
+                    'article_id' => $this->chat->function_response['article_id'] ?? null,
+                    'article_title' => $this->chat->function_response['title'] ?? null,
+                    'article_status' => 'planning'
+                ]
             );
         } catch (\Exception $e) {
             $this->markJobFailed($e);
