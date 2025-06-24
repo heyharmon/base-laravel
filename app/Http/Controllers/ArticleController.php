@@ -17,9 +17,7 @@ class ArticleController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json([
-            'data' => $articles
-        ]);
+        return response()->json($articles);
     }
 
     /**
@@ -34,10 +32,7 @@ class ArticleController extends Controller
 
         $article = Article::create($validated);
 
-        return response()->json([
-            'data' => $article,
-            'message' => 'Article created successfully'
-        ], 201);
+        return response()->json($article, 201);
     }
 
     /**
@@ -45,9 +40,7 @@ class ArticleController extends Controller
      */
     public function show(Article $article): JsonResponse
     {
-        return response()->json([
-            'data' => $article
-        ]);
+        return response()->json($article);
     }
 
     /**
@@ -62,10 +55,7 @@ class ArticleController extends Controller
 
         $article->update($validated);
 
-        return response()->json([
-            'data' => $article,
-            'message' => 'Article updated successfully'
-        ]);
+        return response()->json($article);
     }
 
     /**
@@ -75,8 +65,6 @@ class ArticleController extends Controller
     {
         $article->delete();
 
-        return response()->json([
-            'message' => 'Article deleted successfully'
-        ]);
+        return response()->json($article);
     }
 }

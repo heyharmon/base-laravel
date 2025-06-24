@@ -5,6 +5,7 @@ use App\Http\Controllers\ArticleController;
 use Illuminate\Support\Facades\Route;
 
 // Chat routes
+Route::get('/conversations', [ChatController::class, 'listConversations']);
 Route::post('/conversations', [ChatController::class, 'createConversation']);
 Route::get('/conversations/{conversation}', [ChatController::class, 'getConversation']);
 Route::put('/conversations/{conversation}/context', [ChatController::class, 'updateContext']);

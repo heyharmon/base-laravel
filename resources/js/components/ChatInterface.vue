@@ -15,6 +15,27 @@ const newMessage = ref("");
 const loading = ref(false);
 const messagesContainer = ref(null);
 
+const loadLatestConversation = async () => {
+    try {
+        const response = await api.get("/conversations");
+        if (response.data.length > 0) {
+            const latestConversation = response.data[0];
+            conversationId.value = latestConversation.id;
+            
+            // Load the conversation details including chats
+            const conversationResponse = await api.get(`/conversations/${latestConversation.id}`);
+            chats.value = conversationResponse.data.chats || [];
+        } else {
+            // No conversations exist, create a new one
+            await createConversation();
+        }
+    } catch (error) {
+        console.error("Error loading latest conversation:", error);
+        // Fallback to creating a new conversation
+        await createConversation();
+    }
+};
+
 const createConversation = async () => {
     const context = {};
     if (props.currentArticle) {
@@ -96,7 +117,7 @@ const scrollToBottom = () => {
 };
 
 onMounted(() => {
-    createConversation();
+    loadLatestConversation();
 });
 
 watch(

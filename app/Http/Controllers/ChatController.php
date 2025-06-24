@@ -58,4 +58,10 @@ class ChatController extends Controller
             'chats' => $conversation->chats
         ]);
     }
+
+    public function listConversations()
+    {
+        $conversations = Conversation::orderBy('updated_at', 'desc')->get();
+        return response()->json($conversations);
+    }
 }

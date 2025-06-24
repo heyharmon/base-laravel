@@ -1,5 +1,36 @@
+<script setup>
+import { ref, onMounted } from "vue";
+import api from "@/services/api";
+import ChatInterface from "@/components/ChatInterface.vue";
+
+const articles = ref([]);
+const currentArticle = ref(null);
+
+const loadArticles = async () => {
+    try {
+        const response = await api.get("/articles");
+        console.log("Articles loaded:", response);
+        articles.value = response.data;
+    } catch (error) {
+        console.error("Error loading articles:", error);
+    }
+};
+
+const selectArticle = async (article) => {
+    try {
+        const response = await api.get(`/articles/${article.id}`);
+        currentArticle.value = response.data;
+    } catch (error) {
+        console.error("Error loading article:", error);
+    }
+};
+
+onMounted(() => {
+    loadArticles();
+});
+</script>
+
 <template>
-    <!-- <DefaultLayout> -->
     <div class="flex h-screen bg-gray-100">
         <!-- Sidebar -->
         <div class="w-64 bg-white shadow-md">
@@ -54,37 +85,4 @@
             </div>
         </div>
     </div>
-    <!-- </DefaultLayout> -->
 </template>
-
-<script setup>
-import { ref, onMounted } from "vue";
-import api from "@/services/api";
-import DefaultLayout from "@/layouts/DefaultLayout.vue";
-import ChatInterface from "@/components/ChatInterface.vue";
-
-const articles = ref([]);
-const currentArticle = ref(null);
-
-const loadArticles = async () => {
-    try {
-        const response = await api.get("/articles");
-        articles.value = response.data;
-    } catch (error) {
-        console.error("Error loading articles:", error);
-    }
-};
-
-const selectArticle = async (article) => {
-    try {
-        const response = await api.get(`/articles/${article.id}`);
-        currentArticle.value = response.data;
-    } catch (error) {
-        console.error("Error loading article:", error);
-    }
-};
-
-onMounted(() => {
-    loadArticles();
-});
-</script>
