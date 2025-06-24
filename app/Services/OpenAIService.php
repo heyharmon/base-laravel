@@ -184,11 +184,13 @@ class OpenAIService
             'content' => $systemMessage
         ];
 
-        // Add conversation history
+        // Group chats by their order and reconstruct proper conversation flow
+        $chats = $conversation->chats()->orderBy('created_at')->get();
         $chatCount = 0;
         $toolCallCount = 0;
+        $pendingToolCalls = [];
 
-        foreach ($conversation->chats as $chat) {
+        foreach ($chats as $chat) {
             if ($chat->type === 'user') {
                 $messages[] = [
                     'role' => 'user',
@@ -202,19 +204,62 @@ class OpenAIService
                 ];
                 $chatCount++;
             } elseif ($chat->type === 'tool_call' && $chat->metadata) {
-                // Include tool calls in the message history
+                // Collect tool calls that should be grouped together
+                $pendingToolCalls[] = $chat;
+            }
+        }
+
+        // Process pending tool calls - group them properly
+        if (!empty($pendingToolCalls)) {
+            // Group tool calls that were made in the same assistant response
+            $toolCallGroups = [];
+            $currentGroup = [];
+            $lastCreatedAt = null;
+
+            foreach ($pendingToolCalls as $toolCall) {
+                // If this is a new group (different timestamp or first call)
+                if (
+                    $lastCreatedAt === null ||
+                    abs(strtotime($toolCall->created_at) - strtotime($lastCreatedAt)) > 5
+                ) {
+
+                    if (!empty($currentGroup)) {
+                        $toolCallGroups[] = $currentGroup;
+                    }
+                    $currentGroup = [$toolCall];
+                } else {
+                    $currentGroup[] = $toolCall;
+                }
+                $lastCreatedAt = $toolCall->created_at;
+            }
+
+            if (!empty($currentGroup)) {
+                $toolCallGroups[] = $currentGroup;
+            }
+
+            // Add each group as assistant message with tool calls + tool responses
+            foreach ($toolCallGroups as $group) {
+                // Assistant message with tool calls
+                $toolCalls = [];
+                foreach ($group as $toolCall) {
+                    $toolCalls[] = $toolCall->metadata['tool_call'];
+                }
+
                 $messages[] = [
                     'role' => 'assistant',
                     'content' => null,
-                    'tool_calls' => [$chat->metadata['tool_call']]
+                    'tool_calls' => $toolCalls
                 ];
 
-                $messages[] = [
-                    'role' => 'tool',
-                    'content' => $chat->metadata['result'],
-                    'tool_call_id' => $chat->metadata['tool_call']['id']
-                ];
-                $toolCallCount++;
+                // Add tool responses
+                foreach ($group as $toolCall) {
+                    $messages[] = [
+                        'role' => 'tool',
+                        'content' => $toolCall->metadata['result'],
+                        'tool_call_id' => $toolCall->metadata['tool_call']['id']
+                    ];
+                    $toolCallCount++;
+                }
             }
         }
 
@@ -259,12 +304,19 @@ class OpenAIService
                 // Execute the tool
                 $result = $this->executeTool($functionName, $arguments);
 
-                // Save tool call as chat
+                // Save tool call as chat with proper metadata structure
                 $conversation->chats()->create([
                     'type' => 'tool_call',
                     'content' => $this->getToolCallDescription($functionName, $arguments),
                     'metadata' => [
-                        'tool_call' => $toolCall->toArray(),
+                        'tool_call' => [
+                            'id' => $toolCall->id,
+                            'type' => $toolCall->type,
+                            'function' => [
+                                'name' => $toolCall->function->name,
+                                'arguments' => $toolCall->function->arguments
+                            ]
+                        ],
                         'result' => $result
                     ]
                 ]);
@@ -383,6 +435,7 @@ class OpenAIService
 
                 return json_encode([
                     'success' => true,
+                    'message' => 'Article created successfully',
                     'article' => $article->toArray()
                 ]);
 
@@ -421,6 +474,7 @@ class OpenAIService
 
                 return json_encode([
                     'success' => true,
+                    'message' => 'Article updated successfully',
                     'article' => $article->toArray()
                 ]);
 
