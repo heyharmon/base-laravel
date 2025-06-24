@@ -7,6 +7,7 @@ use App\Models\Chat;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
 use App\Tools\ToolRegistry;
+use App\Services\ConversationContextManager;
 
 /**
  * OpenAI Service - Core AI Research and Writing Agent
@@ -27,6 +28,11 @@ use App\Tools\ToolRegistry;
  */
 class OpenAIService
 {
+    /**
+     * Context manager for building prompts and history
+     */
+    private ConversationContextManager $contextManager;
+
     /**
      * Registry of available tool handlers
      */
@@ -53,8 +59,18 @@ class OpenAIService
      */
     public function sendMessage(Conversation $conversation, string $message, array $context = []): array
     {
-        // Build the message array with system prompt, history, and current message
-        $messages = $this->prepareMessages($conversation, $message, $context);
+        $this->contextManager = new ConversationContextManager($conversation);
+
+        if (isset($context['completed_function'])) {
+            $this->contextManager->addFunctionResult(
+                $context['function_name'],
+                $context['function_arguments'],
+                $context['function_response'],
+                $context['additional_data'] ?? null
+            );
+        }
+
+        $messages = $this->prepareMessages($message);
         Log::info('OpenAI sendMessage', ['messages' => json_encode($messages)]);
 
         try {
@@ -83,36 +99,20 @@ class OpenAIService
      * 2. Recent conversation history (last 10 messages)
      * 3. Current user message
      *
-     * @param Conversation $conversation The conversation to build context from
      * @param string $message The current user message
-     * @param array $context Additional context flags (e.g., job completion signals, article context)
      * @return array Formatted messages array for OpenAI API
      */
-    private function prepareMessages(Conversation $conversation, string $message, array $context): array
+    private function prepareMessages(string $message): array
     {
         $messages = [];
 
-        // Start with system prompt that defines the AI's role and capabilities
         $messages[] = [
             'role' => 'system',
-            'content' => $this->getSystemPrompt($conversation, $context),
+            'content' => $this->contextManager->buildSystemPrompt(),
         ];
 
-        // Add recent conversation history (last 10 user/assistant messages)
-        // This provides context for the AI's response
-        $recentChats = $conversation->chats()
-            ->whereIn('role', ['user', 'assistant'])
-            ->latest()
-            ->limit(10)
-            ->get()
-            ->reverse(); // Reverse to get chronological order
-
-        foreach ($recentChats as $chat) {
-            $messages[] = [
-                'role' => $chat->role,
-                'content' => $chat->content,
-            ];
-        }
+        $history = $this->contextManager->buildConversationHistory();
+        $messages = array_merge($messages, $history);
 
         // Add the current user message
         $messages[] = [
@@ -123,142 +123,6 @@ class OpenAIService
         return $messages;
     }
 
-    /**
-     * Generates the system prompt that defines the AI's role and capabilities
-     *
-     * This prompt is crucial - it defines:
-     * 1. The AI's identity as a research and writing agent
-     * 2. Current conversation plan and progress
-     * 3. Recent function call results (critical for seeing previous work)
-     * 4. Guidelines and workflow instructions
-     *
-     * The dynamic inclusion of recent results solves the "invisible function results" problem
-     * by explicitly showing the AI what was accomplished in previous function calls.
-     *
-     * @param Conversation $conversation The conversation context
-     * @param array $context Context flags indicating when to include function results
-     * @return string The complete system prompt
-     */
-    private function getSystemPrompt(Conversation $conversation, array $context): string
-    {
-        // Include the current research/writing plan
-        $plan = $conversation->agent_plan ? json_encode($conversation->agent_plan) : 'No plan yet';
-
-        // Extract article context if provided
-        $articleContext = '';
-        if (isset($context['article_id'])) {
-            $articleContext = "\n\nCurrent Article Context:";
-            $articleContext .= "\n- Article ID: {$context['article_id']} (IMPORTANT: Use this ID for all article operations)";
-            if (isset($context['article_title'])) {
-                $articleContext .= "\n- Title: {$context['article_title']}";
-            }
-            if (isset($context['article_status'])) {
-                $articleContext .= "\n- Status: {$context['article_status']}";
-            }
-            $articleContext .= "\n- You are currently helping edit this specific article";
-            $articleContext .= "\n- When using write_article_section or review_article functions, ALWAYS use article_id: {$context['article_id']}";
-        }
-
-        // Build recent function results section
-        // This is CRITICAL for function call visibility - without this, the AI can't see
-        // the results of web searches, webpage fetches, or article creations
-        $recentResults = '';
-        if (isset($context['context']) && $context['context'] === 'job_completed') {
-            // Get the last 3 completed function calls
-            $recentCompletedChats = $conversation->chats()
-                ->whereNotNull('function_response')
-                ->where('job_status', 'completed')
-                ->latest()
-                ->limit(3)
-                ->get();
-
-            if ($recentCompletedChats->isNotEmpty()) {
-                $recentResults = "\n\nRecent function call results:\n";
-                foreach ($recentCompletedChats as $chat) {
-                    // Show web search results with previews
-                    if ($chat->function_name === 'web_search' && $chat->web_search_results) {
-                        $recentResults .= "- Web search for '{$chat->function_arguments['query']}' returned:\n";
-                        foreach (array_slice($chat->web_search_results, 0, 10) as $result) {
-                            $recentResults .= "  * {$result['title']} ({$result['url']})\n";
-                            if (!empty($result['content'])) {
-                                $recentResults .= "    Search results: " . $result['content'] . "\n";
-                            }
-                        }
-                    }
-
-                    // Show updated plan
-                    elseif ($chat->function_name === 'update_plan' && $chat->function_response) {
-                        $recentResults .= "- Plan updated:\n";
-                        $recentResults .= "  Plan: " . json_encode($chat->function_response['plan'], JSON_PRETTY_PRINT) . "\n";
-                    }
-
-                    // Show fetched webpage content
-                    elseif ($chat->function_name === 'fetch_webpage' && $chat->web_search_results) {
-                        $recentResults .= "- Fetched webpage content:\n";
-                        $recentResults .= "  Content preview: " . substr($chat->web_search_results, 0, 10000) . "...\n";
-                    }
-
-                    // Show created articles with their IDs (critical for subsequent section writing)
-                    elseif ($chat->function_name === 'create_article' && $chat->function_response) {
-                        $response = $chat->function_response;
-                        $recentResults .= "- Created article '{$response['title']}' with ID {$response['article_id']}\n";
-                        $recentResults .= "  use this article id ({$response['article_id']}) for writing sections\n";
-                    }
-
-                    // Show article section updates
-                    elseif ($chat->function_name === 'write_article_section' && $chat->function_response) {
-                        $response = $chat->function_response;
-                        $recentResults .= "- Updated article section '{$response['section']}' for article ID {$response['article_id']}\n";
-                        $recentResults .= "  Word count: {$response['word_count']}\n";
-                    }
-
-                    // Show article data from view_article tool
-                    elseif ($chat->function_name === 'view_article' && $chat->function_response) {
-                        $article = $chat->function_response['article'];
-                        $recentResults .= "- Viewed article of id {$article['id']}: Title '{$article['title']}'\n";
-                        $recentResults .= "  Content: \n{$article['content']}\n";
-
-                        if (!empty($article['outline'])) {
-                            $recentResults .= "  Outline: \n";
-                            foreach ($article['outline'] as $section) {
-                                $recentResults .= "    - {$section}\n";
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return <<<PROMPT
-You are an advanced research and writing agent. Your primary goal is to help users create comprehensive, well-researched articles.
-
-Current conversation plan: {$plan}{$articleContext}{$recentResults}
-
-Your capabilities:
-1. Create and update research plans
-2. Conduct web searches and fetch web pages
-3. Write and revise articles in sections
-4. Manage multiple research tasks simultaneously
-5. Self-evaluate your work and iterate
-
-Guidelines:
-- Always maintain and update your plan as you work
-- Break down article writing into manageable sections
-- Conduct thorough research before writing each section
-- Include accurate citations in your articles
-- Regularly review and improve your work
-- Be transparent about your reasoning and progress
-- Use the recent function call results shown above when they are available
-
-When writing articles:
-- Follow the outline structure
-- Write one section at a time
-- Research thoroughly before writing each section
-- Review and revise as needed
-- Ensure coherence across sections
-- If an article_id is provided in the context, use that ID for all article operations
-PROMPT;
-    }
 
     /**
      * Processes OpenAI API response and handles function calls
