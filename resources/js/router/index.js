@@ -1,19 +1,25 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHistory } from "vue-router";
 
 // Import pages
-import Home from '@/pages/Home.vue';
+import Home from "@/pages/Home.vue";
+import ArticleEditor from "@/pages/ArticleEditor.vue";
 
 const routes = [
-  {
-    path: '/',
-    name: 'home',
-    component: Home,
-  },
+    {
+        path: "/",
+        name: "home",
+        component: Home,
+    },
+    {
+        path: "/articles/:id/edit",
+        name: "article.edit",
+        component: ArticleEditor,
+    },
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes,
+    history: createWebHistory(),
+    routes,
 });
 
 export default router;
