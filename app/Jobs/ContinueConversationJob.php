@@ -35,10 +35,24 @@ class ContinueConversationJob implements ShouldQueue
             return;
         }
 
-        // Merge job_completed context with any article context
+        // Find the most recent completed function call
+        $lastCompletedChat = $this->conversation->chats()
+            ->whereNotNull('function_response')
+            ->where('job_status', 'completed')
+            ->latest()
+            ->first();
+
         $fullContext = array_merge($this->context, [
             'context' => 'job_completed',
         ]);
+
+        if ($lastCompletedChat) {
+            $fullContext['completed_function'] = true;
+            $fullContext['function_name'] = $lastCompletedChat->function_name;
+            $fullContext['function_arguments'] = $lastCompletedChat->function_arguments;
+            $fullContext['function_response'] = $lastCompletedChat->function_response;
+            $fullContext['additional_data'] = $lastCompletedChat->web_search_results;
+        }
 
         $openai->sendMessage($this->conversation, $this->message, $fullContext);
     }
