@@ -2,6 +2,8 @@
 import { ref, onMounted, nextTick, watch } from "vue";
 import api from "@/services/api";
 
+const emit = defineEmits(['responseReceived']);
+
 const props = defineProps({
     currentArticle: {
         type: Object,
@@ -85,6 +87,7 @@ const sendMessage = async () => {
         chats.value = response.data.chats;
         await nextTick();
         scrollToBottom();
+        emit('responseReceived');
     } catch (error) {
         console.error("Error sending message:", error);
         newMessage.value = message; // Restore message on error

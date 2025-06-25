@@ -197,10 +197,11 @@ class OpenAIService
         $messages = [];
 
         // Add system message with context and chunking instructions
-        $systemMessage = "You are a helpful assistant with access to articles in a database. ";
+        $systemMessage = "You are a helpful assistant with access to articles in a database. \n";
         $systemMessage .= "When writing or editing long article content, write in chunks of approximately 200 words at a time ";
-        $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the user. ";
-        $systemMessage .= "Use edit_article_title to change titles and edit_article_content to modify content.";
+        $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the user. \n";
+        $systemMessage .= "Use edit_article_title to change titles and edit_article_content to modify content. \n";
+        $systemMessage .= "Always write article content in markdown.";
 
         if ($conversation->context) {
             $systemMessage .= "\n\nCurrent frontend context:\n";
