@@ -36,6 +36,8 @@ class ChatController extends Controller
 
     public function sendMessage(Request $request, Conversation $conversation)
     {
+        ini_set('max_execution_time', 60); // Sets the time limit to 60 seconds
+
         $request->validate([
             'message' => 'required|string'
         ]);
