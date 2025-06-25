@@ -63,12 +63,8 @@ class OpenAIService
                             'type' => 'string',
                             'description' => 'The title of the article'
                         ],
-                        'content' => [
-                            'type' => 'string',
-                            'description' => 'The content of the article'
-                        ]
                     ],
-                    'required' => ['title', 'content']
+                    'required' => ['title']
                 ]
             ]
         ],
@@ -442,16 +438,13 @@ class OpenAIService
 
             case 'create_article':
                 $title = $arguments['title'];
-                $content = $arguments['content'];
 
                 Log::debug('OpenAI Service: Creating article', [
                     'title' => $title,
-                    'content_length' => strlen($content)
                 ]);
 
                 $article = Article::create([
                     'title' => $title,
-                    'content' => $content
                 ]);
 
                 Log::info('OpenAI Service: Article created', [
