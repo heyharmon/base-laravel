@@ -88,7 +88,6 @@ const sendMessage = async () => {
     } catch (error) {
         console.error("Error sending message:", error);
         newMessage.value = message; // Restore message on error
-        alert("Failed to send message. Please try again.");
     } finally {
         loading.value = false;
     }
