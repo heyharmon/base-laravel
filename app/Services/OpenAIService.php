@@ -289,18 +289,19 @@ class OpenAIService
             }
         }
 
-        $conversation->openai_response_id = $response->id;
-        $conversation->save();
-
         if (!empty($toolOutputs)) {
             $followUp = OpenAI::responses()->create([
                 'model' => 'o4-mini-2025-04-16',
+                'input' => '',
                 'previous_response_id' => $response->id,
                 'tool_outputs' => $toolOutputs,
             ]);
 
             return $this->processResponse($conversation, $followUp);
         }
+
+        $conversation->openai_response_id = $response->id;
+        $conversation->save();
 
         Log::info('OpenAI Service: Response processing completed', [
             'conversation_id' => $conversation->id
