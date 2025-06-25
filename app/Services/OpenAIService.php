@@ -76,7 +76,7 @@ class OpenAIService
             'type' => 'function',
             'function' => [
                 'name' => 'edit_article',
-                'description' => 'Edit an existing article',
+                'description' => 'Edit an existing article. For long content, use multiple calls with append mode to write in chunks of ~200 words.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -90,7 +90,18 @@ class OpenAIService
                         ],
                         'content' => [
                             'type' => 'string',
-                            'description' => 'The new content (optional)'
+                            'description' => 'The new content. When append=true, this content will be added to the existing content.'
+                        ],
+                        'append' => [
+                            'type' => 'boolean',
+                            'description' => 'If true, append content to existing article instead of replacing it. Use this for writing long articles in chunks.',
+                            'default' => false
+                        ],
+                        'position' => [
+                            'type' => 'string',
+                            'enum' => ['end', 'beginning', 'replace'],
+                            'description' => 'Where to add the content when append=true. Default is "end".',
+                            'default' => 'end'
                         ]
                     ],
                     'required' => ['article_id']
@@ -164,8 +175,10 @@ class OpenAIService
     {
         $messages = [];
 
-        // Add system message with context
-        $systemMessage = "You are a helpful assistant with access to articles in a database.";
+        // Add system message with context and chunking instructions
+        $systemMessage = "You are a helpful assistant with access to articles in a database. ";
+        $systemMessage .= "When writing or editing long articles, write in chunks of approximately 200 words at a time ";
+        $systemMessage .= "using multiple edit_article calls with append=true. This provides faster feedback to the user.";
 
         if ($conversation->context) {
             $systemMessage .= "\n\nCurrent frontend context:\n";
@@ -441,11 +454,15 @@ class OpenAIService
 
             case 'edit_article':
                 $articleId = $arguments['article_id'];
+                $append = $arguments['append'] ?? false;
+                $position = $arguments['position'] ?? 'end';
 
                 Log::debug('OpenAI Service: Editing article', [
                     'article_id' => $articleId,
                     'has_title_update' => isset($arguments['title']),
-                    'has_content_update' => isset($arguments['content'])
+                    'has_content_update' => isset($arguments['content']),
+                    'append_mode' => $append,
+                    'position' => $position
                 ]);
 
                 $article = Article::find($articleId);
@@ -457,14 +474,51 @@ class OpenAIService
                 }
 
                 $changes = [];
+
+                // Handle title update
                 if (isset($arguments['title'])) {
                     $changes['title'] = ['from' => $article->title, 'to' => $arguments['title']];
                     $article->title = $arguments['title'];
                 }
+
+                // Handle content update
                 if (isset($arguments['content'])) {
-                    $changes['content_length'] = ['from' => strlen($article->content), 'to' => strlen($arguments['content'])];
-                    $article->content = $arguments['content'];
+                    $originalLength = strlen($article->content);
+
+                    if ($append) {
+                        // Append mode
+                        switch ($position) {
+                            case 'beginning':
+                                $article->content = $arguments['content'] . $article->content;
+                                break;
+                            case 'end':
+                            default:
+                                $article->content = $article->content . $arguments['content'];
+                                break;
+                        }
+
+                        $changes['content_appended'] = [
+                            'length_added' => strlen($arguments['content']),
+                            'position' => $position,
+                            'new_total_length' => strlen($article->content)
+                        ];
+
+                        Log::info('OpenAI Service: Content appended to article', [
+                            'article_id' => $articleId,
+                            'append_position' => $position,
+                            'content_added_length' => strlen($arguments['content']),
+                            'new_total_length' => strlen($article->content)
+                        ]);
+                    } else {
+                        // Replace mode (original behavior)
+                        $article->content = $arguments['content'];
+                        $changes['content_length'] = [
+                            'from' => $originalLength,
+                            'to' => strlen($arguments['content'])
+                        ];
+                    }
                 }
+
                 $article->save();
 
                 Log::info('OpenAI Service: Article updated', [
@@ -472,11 +526,23 @@ class OpenAIService
                     'changes' => $changes
                 ]);
 
-                return json_encode([
+                $response = [
                     'success' => true,
-                    'message' => 'Article updated successfully',
+                    'message' => $append ? 'Content appended successfully' : 'Article updated successfully',
                     'article' => $article->toArray()
-                ]);
+                ];
+
+                // Add progress information for chunked writing
+                if ($append && isset($arguments['content'])) {
+                    $wordCount = str_word_count($article->content);
+                    $response['progress'] = [
+                        'total_words' => $wordCount,
+                        'total_length' => strlen($article->content),
+                        'chunk_added' => strlen($arguments['content'])
+                    ];
+                }
+
+                return json_encode($response);
 
             case 'web_search':
                 $query = $arguments['query'];
@@ -523,6 +589,13 @@ class OpenAIService
             case 'edit_article':
                 $article = Article::find($arguments['article_id']);
                 $title = $article ? $article->title : 'Unknown';
+                $append = $arguments['append'] ?? false;
+                if ($append) {
+                    $position = $arguments['position'] ?? 'end';
+                    $contentLength = isset($arguments['content']) ? strlen($arguments['content']) : 0;
+                    $wordCount = isset($arguments['content']) ? str_word_count($arguments['content']) : 0;
+                    return "Appending ~{$wordCount} words to article \"{$title}\" at {$position}...";
+                }
                 return "Editing article: \"{$title}\"...";
             case 'web_search':
                 return "Searching for: \"{$arguments['query']}\"";
