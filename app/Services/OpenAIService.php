@@ -103,13 +103,26 @@ class OpenAIService
                         ],
                         'content' => [
                             'type' => 'string',
-                            'description' => 'The new content. When mode="append", this content will be added to the existing content. When mode="replace", this will replace all existing content.'
+                            'description' => 'The new content to add or use for replacement'
                         ],
                         'mode' => [
                             'type' => 'string',
-                            'enum' => ['replace', 'append', 'prepend'],
-                            'description' => 'How to apply the content: "replace" overwrites all content, "append" adds to the end, "prepend" adds to the beginning. Default is "replace".',
-                            'default' => 'replace'
+                            'enum' => ['replace', 'append', 'prepend', 'insert_at_marker'],
+                            'description' => 'How to apply the content: "replace" replaces specific text, "append" adds to the end, "prepend" adds to the beginning, "insert_at_marker" inserts at a position marker. Default is "append" for articles with content, "prepend" for empty articles.',
+                            'default' => 'auto'
+                        ],
+                        'search_text' => [
+                            'type' => 'string',
+                            'description' => 'For replace mode: the exact text to replace. If not provided with replace mode, will append to existing content.'
+                        ],
+                        'position_marker' => [
+                            'type' => 'string',
+                            'description' => 'For insert_at_marker mode: a marker/phrase indicating where to insert the content (e.g., "after the introduction", "before the conclusion")'
+                        ],
+                        'replace_all_occurrences' => [
+                            'type' => 'boolean',
+                            'description' => 'For replace mode: whether to replace all occurrences of search_text or just the first one. Default is false.',
+                            'default' => false
                         ]
                     ],
                     'required' => ['article_id', 'content']
@@ -496,12 +509,17 @@ class OpenAIService
             case 'edit_article_content':
                 $articleId = $arguments['article_id'];
                 $content = $arguments['content'];
-                $mode = $arguments['mode'] ?? 'replace';
+                $mode = $arguments['mode'] ?? 'auto';
+                $searchText = $arguments['search_text'] ?? null;
+                $positionMarker = $arguments['position_marker'] ?? null;
+                $replaceAll = $arguments['replace_all_occurrences'] ?? false;
 
                 Log::debug('OpenAI Service: Editing article content', [
                     'article_id' => $articleId,
                     'mode' => $mode,
-                    'content_length' => strlen($content)
+                    'content_length' => strlen($content),
+                    'search_text' => $searchText ? substr($searchText, 0, 50) . '...' : null,
+                    'position_marker' => $positionMarker
                 ]);
 
                 $article = Article::find($articleId);
@@ -514,19 +532,133 @@ class OpenAIService
 
                 $originalLength = strlen($article->content);
                 $originalWordCount = str_word_count($article->content);
+                $originalContent = $article->content;
+
+                // Determine actual mode if 'auto' is specified
+                if ($mode === 'auto') {
+                    $mode = empty($article->content) ? 'prepend' : 'append';
+                }
 
                 // Apply content based on mode
                 switch ($mode) {
+                    case 'replace':
+                        if ($searchText) {
+                            // Replace specific text
+                            if ($replaceAll) {
+                                $article->content = str_replace($searchText, $content, $article->content);
+                                $occurrences = substr_count($originalContent, $searchText);
+                            } else {
+                                $pos = strpos($article->content, $searchText);
+                                if ($pos !== false) {
+                                    $article->content = substr_replace($article->content, $content, $pos, strlen($searchText));
+                                    $occurrences = 1;
+                                } else {
+                                    $occurrences = 0;
+                                }
+                            }
+
+                            if ($occurrences === 0) {
+                                return json_encode([
+                                    'error' => 'Search text not found in article',
+                                    'search_text' => $searchText
+                                ]);
+                            }
+                        } else {
+                            // No search text provided, append instead
+                            $article->content = $article->content . $content;
+                            $mode = 'append'; // Update mode for accurate reporting
+                        }
+                        break;
+
+                    case 'insert_at_marker':
+                        if (!$positionMarker) {
+                            return json_encode([
+                                'error' => 'Position marker required for insert_at_marker mode'
+                            ]);
+                        }
+
+                        // Try to find a logical position based on the marker
+                        $inserted = false;
+                        $lowerContent = strtolower($article->content);
+                        $lowerMarker = strtolower($positionMarker);
+
+                        // Common position patterns
+                        $patterns = [
+                            '/after\s+(the\s+)?(.+)/i' => function ($matches) use (&$article, $content, $lowerContent) {
+                                $searchPhrase = $matches[2];
+                                $pos = stripos($article->content, $searchPhrase);
+                                if ($pos !== false) {
+                                    $endPos = $pos + strlen($searchPhrase);
+                                    // Find the end of the sentence/paragraph
+                                    $nextPeriod = strpos($article->content, '.', $endPos);
+                                    $nextNewline = strpos($article->content, "\n", $endPos);
+
+                                    if ($nextPeriod !== false || $nextNewline !== false) {
+                                        $insertPos = min(
+                                            $nextPeriod !== false ? $nextPeriod + 1 : PHP_INT_MAX,
+                                            $nextNewline !== false ? $nextNewline : PHP_INT_MAX
+                                        );
+                                    } else {
+                                        $insertPos = strlen($article->content);
+                                    }
+
+                                    $article->content = substr($article->content, 0, $insertPos) .
+                                        ' ' . $content .
+                                        substr($article->content, $insertPos);
+                                    return true;
+                                }
+                                return false;
+                            },
+                            '/before\s+(the\s+)?(.+)/i' => function ($matches) use (&$article, $content) {
+                                $searchPhrase = $matches[2];
+                                $pos = stripos($article->content, $searchPhrase);
+                                if ($pos !== false) {
+                                    $article->content = substr($article->content, 0, $pos) .
+                                        $content . ' ' .
+                                        substr($article->content, $pos);
+                                    return true;
+                                }
+                                return false;
+                            }
+                        ];
+
+                        foreach ($patterns as $pattern => $handler) {
+                            if (preg_match($pattern, $positionMarker, $matches)) {
+                                $inserted = $handler($matches);
+                                if ($inserted) break;
+                            }
+                        }
+
+                        // If no pattern matched, try to find the marker text directly
+                        if (!$inserted) {
+                            $pos = stripos($article->content, $positionMarker);
+                            if ($pos !== false) {
+                                $endPos = $pos + strlen($positionMarker);
+                                $article->content = substr($article->content, 0, $endPos) .
+                                    ' ' . $content .
+                                    substr($article->content, $endPos);
+                                $inserted = true;
+                            }
+                        }
+
+                        if (!$inserted) {
+                            return json_encode([
+                                'error' => 'Could not find position marker in article',
+                                'position_marker' => $positionMarker
+                            ]);
+                        }
+                        break;
+
                     case 'append':
                         $article->content = $article->content . $content;
                         break;
+
                     case 'prepend':
                         $article->content = $content . $article->content;
                         break;
-                    case 'replace':
+
                     default:
-                        $article->content = $content;
-                        break;
+                        return json_encode(['error' => 'Invalid mode specified']);
                 }
 
                 $article->save();
@@ -546,9 +678,7 @@ class OpenAIService
 
                 $response = [
                     'success' => true,
-                    'message' => $mode === 'replace' ?
-                        'Article content replaced successfully' :
-                        'Content ' . $mode . 'ed successfully',
+                    'message' => $this->getEditSuccessMessage($mode, $searchText, $positionMarker),
                     'article_id' => $article->id,
                     'mode' => $mode,
                     'progress' => [
@@ -559,7 +689,11 @@ class OpenAIService
                     ]
                 ];
 
-                if ($mode !== 'replace') {
+                if ($mode === 'replace' && isset($occurrences)) {
+                    $response['replacements'] = $occurrences;
+                }
+
+                if ($mode !== 'replace' || !$searchText) {
                     $response['progress']['previous_words'] = $originalWordCount;
                     $response['progress']['previous_length'] = $originalLength;
                 }
@@ -595,6 +729,25 @@ class OpenAIService
         }
     }
 
+    // Add this helper method to the OpenAIService class:
+    protected function getEditSuccessMessage($mode, $searchText = null, $positionMarker = null)
+    {
+        switch ($mode) {
+            case 'replace':
+                return $searchText ?
+                    "Replaced text successfully" :
+                    "Content appended successfully (no search text provided for replacement)";
+            case 'append':
+                return "Content appended successfully";
+            case 'prepend':
+                return "Content prepended successfully";
+            case 'insert_at_marker':
+                return "Content inserted at specified position";
+            default:
+                return "Article content updated successfully";
+        }
+    }
+
     protected function getToolCallDescription($functionName, $arguments)
     {
         switch ($functionName) {
@@ -611,10 +764,30 @@ class OpenAIService
             case 'create_article':
                 return "Creating article: \"{$arguments['title']}\"...";
 
-            case 'edit_article_title':
+            case 'edit_article_content':
                 $article = Article::find($arguments['article_id']);
-                $currentTitle = $article ? $article->title : 'Unknown';
-                return "Changing title of \"{$currentTitle}\" to \"{$arguments['title']}\"...";
+                $title = $article ? $article->title : 'Unknown';
+                $mode = $arguments['mode'] ?? 'auto';
+                $wordCount = str_word_count($arguments['content']);
+
+                if ($mode === 'auto') {
+                    $mode = ($article && empty($article->content)) ? 'prepend' : 'append';
+                }
+
+                if ($mode === 'replace' && isset($arguments['search_text'])) {
+                    $searchPreview = strlen($arguments['search_text']) > 30 ?
+                        substr($arguments['search_text'], 0, 30) . '...' :
+                        $arguments['search_text'];
+                    return "Replacing \"{$searchPreview}\" in article \"{$title}\" ({$wordCount} words)...";
+                } elseif ($mode === 'insert_at_marker' && isset($arguments['position_marker'])) {
+                    return "Inserting {$wordCount} words at \"{$arguments['position_marker']}\" in article \"{$title}\"...";
+                } elseif ($mode === 'append') {
+                    return "Appending {$wordCount} words to article \"{$title}\"...";
+                } elseif ($mode === 'prepend') {
+                    return "Prepending {$wordCount} words to article \"{$title}\"...";
+                } else {
+                    return "Editing content of article \"{$title}\" ({$wordCount} words)...";
+                }
 
             case 'edit_article_content':
                 $article = Article::find($arguments['article_id']);
