@@ -9,7 +9,6 @@ const currentArticle = ref(null);
 const loadArticles = async () => {
     try {
         const response = await api.get("/articles");
-        console.log("Articles loaded:", response);
         articles.value = response.data;
 
         // Automatically select the latest article if articles exist
@@ -27,6 +26,22 @@ const selectArticle = async (article) => {
         currentArticle.value = response.data;
     } catch (error) {
         console.error("Error loading article:", error);
+    }
+};
+
+const handleResponseReceived = async () => {
+    await loadArticles();
+
+    // If there's a current article selected, reload it
+    if (currentArticle.value) {
+        try {
+            const response = await api.get(
+                `/articles/${currentArticle.value.id}`
+            );
+            currentArticle.value = response.data;
+        } catch (error) {
+            console.error("Error reloading current article:", error);
+        }
     }
 };
 
@@ -86,7 +101,10 @@ onMounted(() => {
 
             <!-- Chat Panel -->
             <div class="w-96 border-l border-gray-200 bg-gray-50">
-                <ChatInterface :current-article="currentArticle" />
+                <ChatInterface
+                    :current-article="currentArticle"
+                    @response-received="handleResponseReceived"
+                />
             </div>
         </div>
     </div>
