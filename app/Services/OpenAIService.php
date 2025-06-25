@@ -166,8 +166,8 @@ class OpenAIService
             'conversation_id' => $conversation->id
         ]);
 
-        // Build messages array with context
-        $messages = $this->buildMessages($conversation);
+        // Build request payload for the Responses API
+        $request = $this->buildRequest($conversation, $userMessage);
 
         // Call OpenAI
         Log::info('OpenAI Service: Calling OpenAI API', [
@@ -176,27 +176,35 @@ class OpenAIService
             'tools_count' => count($this->tools)
         ]);
 
-        $response = OpenAI::chat()->create([
-            'model' => 'o4-mini-2025-04-16',
-            'messages' => $messages,
-            'tools' => $this->tools,
-            'tool_choice' => 'auto'
-        ]);
+        $response = OpenAI::responses()->create($request);
 
         Log::info('OpenAI Service: Received response from OpenAI', [
             'conversation_id' => $conversation->id,
-            'choices_count' => count($response->choices)
+            'status' => $response->status
         ]);
 
         // Process the response
         return $this->processResponse($conversation, $response);
     }
 
-    protected function buildMessages(Conversation $conversation)
+    protected function buildRequest(Conversation $conversation, string $userMessage): array
     {
-        $messages = [];
+        $instructions = $this->composeSystemPrompt($conversation);
+        $previous = $conversation->openai_response_id;
 
-        // Add system message with context and chunking instructions
+        return array_filter([
+            'model' => 'o4-mini-2025-04-16',
+            'instructions' => $instructions,
+            'input' => $userMessage,
+            'tools' => $this->tools,
+            'tool_choice' => 'auto',
+            'parallel_tool_calls' => true,
+            'previous_response_id' => $previous,
+        ]);
+    }
+
+    protected function composeSystemPrompt(Conversation $conversation): string
+    {
         $systemMessage = "You are a helpful assistant with access to articles in a database. \n";
         $systemMessage .= "When writing or editing long article content, write in chunks of approximately 200 words at a time ";
         $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the user. \n";
@@ -208,105 +216,53 @@ class OpenAIService
             foreach ($conversation->context as $key => $value) {
                 $systemMessage .= "- {$key}: {$value}\n";
             }
-
-            Log::debug('OpenAI Service: Added context to system message', [
-                'conversation_id' => $conversation->id,
-                'context_keys' => array_keys($conversation->context)
-            ]);
         }
 
-        $messages[] = [
-            'role' => 'system',
-            'content' => $systemMessage
-        ];
+        return $systemMessage;
+    }
 
-        // Group chats by their order and reconstruct proper conversation flow
-        $chats = $conversation->chats()->orderBy('created_at')->get();
-        $chatCount = 0;
-        $toolCallCount = 0;
-        $pendingToolCalls = [];
+    protected function handleAssistantMessage(Conversation $conversation, $item): void
+    {
+        $conversation->chats()->create([
+            'type' => 'assistant',
+            'content' => $item->content[0]->text ?? '',
+        ]);
+    }
 
-        foreach ($chats as $chat) {
-            if ($chat->type === 'user') {
-                $messages[] = [
-                    'role' => 'user',
-                    'content' => $chat->content
-                ];
-                $chatCount++;
-            } elseif ($chat->type === 'assistant') {
-                $messages[] = [
-                    'role' => 'assistant',
-                    'content' => $chat->content
-                ];
-                $chatCount++;
-            } elseif ($chat->type === 'tool_call' && $chat->metadata) {
-                // Collect tool calls that should be grouped together
-                $pendingToolCalls[] = $chat;
-            }
-        }
+    protected function handleFunctionCall(Conversation $conversation, $item): array
+    {
+        $functionName = $item->name;
+        $arguments = $item->arguments ?? [];
 
-        // Process pending tool calls - group them properly
-        if (!empty($pendingToolCalls)) {
-            // Group tool calls that were made in the same assistant response
-            $toolCallGroups = [];
-            $currentGroup = [];
-            $lastCreatedAt = null;
-
-            foreach ($pendingToolCalls as $toolCall) {
-                // If this is a new group (different timestamp or first call)
-                if (
-                    $lastCreatedAt === null ||
-                    abs(strtotime($toolCall->created_at) - strtotime($lastCreatedAt)) > 5
-                ) {
-
-                    if (!empty($currentGroup)) {
-                        $toolCallGroups[] = $currentGroup;
-                    }
-                    $currentGroup = [$toolCall];
-                } else {
-                    $currentGroup[] = $toolCall;
-                }
-                $lastCreatedAt = $toolCall->created_at;
-            }
-
-            if (!empty($currentGroup)) {
-                $toolCallGroups[] = $currentGroup;
-            }
-
-            // Add each group as assistant message with tool calls + tool responses
-            foreach ($toolCallGroups as $group) {
-                // Assistant message with tool calls
-                $toolCalls = [];
-                foreach ($group as $toolCall) {
-                    $toolCalls[] = $toolCall->metadata['tool_call'];
-                }
-
-                $messages[] = [
-                    'role' => 'assistant',
-                    'content' => null,
-                    'tool_calls' => $toolCalls
-                ];
-
-                // Add tool responses
-                foreach ($group as $toolCall) {
-                    $messages[] = [
-                        'role' => 'tool',
-                        'content' => $toolCall->metadata['result'],
-                        'tool_call_id' => $toolCall->metadata['tool_call']['id']
-                    ];
-                    $toolCallCount++;
-                }
-            }
-        }
-
-        Log::debug('OpenAI Service: Messages array built successfully', [
+        Log::info('OpenAI Service: Executing tool call', [
             'conversation_id' => $conversation->id,
-            'total_messages' => count($messages),
-            'chat_messages' => $chatCount,
-            'tool_calls' => $toolCallCount
+            'function_name' => $functionName,
+            'tool_call_id' => $item->id,
+            'arguments' => $arguments,
         ]);
 
-        return $messages;
+        $result = $this->executeTool($functionName, $arguments);
+
+        $conversation->chats()->create([
+            'type' => 'tool_call',
+            'content' => $this->getToolCallDescription($functionName, $arguments),
+            'metadata' => [
+                'tool_call' => [
+                    'id' => $item->id,
+                    'type' => 'function',
+                    'function' => [
+                        'name' => $functionName,
+                        'arguments' => json_encode($arguments),
+                    ],
+                ],
+                'result' => $result,
+            ],
+        ]);
+
+        return [
+            'tool_call_id' => $item->id,
+            'output' => $result,
+        ];
     }
 
     protected function processResponse(Conversation $conversation, $response)
@@ -315,74 +271,37 @@ class OpenAIService
             'conversation_id' => $conversation->id
         ]);
 
-        $choice = $response->choices[0];
-        $message = $choice->message;
+        $toolOutputs = [];
 
-        // Handle tool calls
-        if (isset($message->toolCalls) && !empty($message->toolCalls)) {
-            Log::info('OpenAI Service: Tool calls detected', [
-                'conversation_id' => $conversation->id,
-                'tool_calls_count' => count($message->toolCalls)
-            ]);
+        foreach ($response->output as $item) {
+            switch ($item->type) {
+                case 'message':
+                    $this->handleAssistantMessage($conversation, $item);
+                    break;
 
-            foreach ($message->toolCalls as $index => $toolCall) {
-                $functionName = $toolCall->function->name;
-                $arguments = json_decode($toolCall->function->arguments, true);
+                case 'function_call':
+                    $toolOutputs[] = $this->handleFunctionCall($conversation, $item);
+                    break;
 
-                Log::info('OpenAI Service: Executing tool call', [
-                    'conversation_id' => $conversation->id,
-                    'tool_call_index' => $index + 1,
-                    'function_name' => $functionName,
-                    'tool_call_id' => $toolCall->id,
-                    'arguments' => $arguments
-                ]);
-
-                // Execute the tool
-                $result = $this->executeTool($functionName, $arguments);
-
-                // Save tool call as chat with proper metadata structure
-                $conversation->chats()->create([
-                    'type' => 'tool_call',
-                    'content' => $this->getToolCallDescription($functionName, $arguments),
-                    'metadata' => [
-                        'tool_call' => [
-                            'id' => $toolCall->id,
-                            'type' => $toolCall->type,
-                            'function' => [
-                                'name' => $toolCall->function->name,
-                                'arguments' => $toolCall->function->arguments
-                            ]
-                        ],
-                        'result' => $result
-                    ]
-                ]);
-
-                Log::debug('OpenAI Service: Tool call saved to conversation', [
-                    'conversation_id' => $conversation->id,
-                    'function_name' => $functionName
-                ]);
+                case 'web_search_call':
+                    // handled automatically by OpenAI
+                    break;
             }
-
-            // Continue the conversation with tool results
-            Log::info('OpenAI Service: Continuing conversation with tool results', [
-                'conversation_id' => $conversation->id
-            ]);
-
-            return $this->continueWithToolResults($conversation);
         }
 
-        // Save assistant message
-        if ($message->content) {
-            Log::info('OpenAI Service: Saving assistant message', [
-                'conversation_id' => $conversation->id,
-                'message_length' => strlen($message->content)
+        if (!empty($toolOutputs)) {
+            $followUp = OpenAI::responses()->create([
+                'model' => 'o4-mini-2025-04-16',
+                'input' => '',
+                'previous_response_id' => $response->id,
+                'tool_outputs' => $toolOutputs,
             ]);
 
-            $conversation->chats()->create([
-                'type' => 'assistant',
-                'content' => $message->content
-            ]);
+            return $this->processResponse($conversation, $followUp);
         }
+
+        $conversation->openai_response_id = $response->id;
+        $conversation->save();
 
         Log::info('OpenAI Service: Response processing completed', [
             'conversation_id' => $conversation->id
@@ -811,30 +730,4 @@ class OpenAIService
         }
     }
 
-    protected function continueWithToolResults(Conversation $conversation)
-    {
-        Log::info('OpenAI Service: Continuing conversation with tool results', [
-            'conversation_id' => $conversation->id
-        ]);
-
-        $messages = $this->buildMessages($conversation);
-
-        Log::info('OpenAI Service: Making follow-up call to OpenAI with tool results', [
-            'conversation_id' => $conversation->id,
-            'message_count' => count($messages)
-        ]);
-
-        $response = OpenAI::chat()->create([
-            'model' => 'o4-mini-2025-04-16',
-            'messages' => $messages,
-            'tools' => $this->tools,
-            'tool_choice' => 'auto'
-        ]);
-
-        Log::info('OpenAI Service: Received follow-up response from OpenAI', [
-            'conversation_id' => $conversation->id
-        ]);
-
-        return $this->processResponse($conversation, $response);
-    }
 }
