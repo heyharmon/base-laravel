@@ -75,8 +75,8 @@ class OpenAIService
         [
             'type' => 'function',
             'function' => [
-                'name' => 'edit_article',
-                'description' => 'Edit an existing article. For long content, use multiple calls with append mode to write in chunks of ~200 words.',
+                'name' => 'edit_article_title',
+                'description' => 'Edit the title of an existing article',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -86,25 +86,37 @@ class OpenAIService
                         ],
                         'title' => [
                             'type' => 'string',
-                            'description' => 'The new title (optional)'
+                            'description' => 'The new title for the article'
+                        ]
+                    ],
+                    'required' => ['article_id', 'title']
+                ]
+            ]
+        ],
+        [
+            'type' => 'function',
+            'function' => [
+                'name' => 'edit_article_content',
+                'description' => 'Edit the content of an existing article. For long content, use multiple calls with append mode to write in chunks of ~200 words.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'article_id' => [
+                            'type' => 'integer',
+                            'description' => 'The ID of the article to edit'
                         ],
                         'content' => [
                             'type' => 'string',
-                            'description' => 'The new content. When append=true, this content will be added to the existing content.'
+                            'description' => 'The new content. When mode="append", this content will be added to the existing content. When mode="replace", this will replace all existing content.'
                         ],
-                        'append' => [
-                            'type' => 'boolean',
-                            'description' => 'If true, append content to existing article instead of replacing it. Use this for writing long articles in chunks.',
-                            'default' => false
-                        ],
-                        'position' => [
+                        'mode' => [
                             'type' => 'string',
-                            'enum' => ['end', 'beginning', 'replace'],
-                            'description' => 'Where to add the content when append=true. Default is "end".',
-                            'default' => 'end'
+                            'enum' => ['replace', 'append', 'prepend'],
+                            'description' => 'How to apply the content: "replace" overwrites all content, "append" adds to the end, "prepend" adds to the beginning. Default is "replace".',
+                            'default' => 'replace'
                         ]
                     ],
-                    'required' => ['article_id']
+                    'required' => ['article_id', 'content']
                 ]
             ]
         ],
@@ -177,8 +189,9 @@ class OpenAIService
 
         // Add system message with context and chunking instructions
         $systemMessage = "You are a helpful assistant with access to articles in a database. ";
-        $systemMessage .= "When writing or editing long articles, write in chunks of approximately 200 words at a time ";
-        $systemMessage .= "using multiple edit_article calls with append=true. This provides faster feedback to the user.";
+        $systemMessage .= "When writing or editing long article content, write in chunks of approximately 200 words at a time ";
+        $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the user. ";
+        $systemMessage .= "Use edit_article_title to change titles and edit_article_content to modify content.";
 
         if ($conversation->context) {
             $systemMessage .= "\n\nCurrent frontend context:\n";
@@ -452,94 +465,110 @@ class OpenAIService
                     'article' => $article->toArray()
                 ]);
 
-            case 'edit_article':
+            case 'edit_article_title':
                 $articleId = $arguments['article_id'];
-                $append = $arguments['append'] ?? false;
-                $position = $arguments['position'] ?? 'end';
+                $newTitle = $arguments['title'];
 
-                Log::debug('OpenAI Service: Editing article', [
+                Log::debug('OpenAI Service: Editing article title', [
                     'article_id' => $articleId,
-                    'has_title_update' => isset($arguments['title']),
-                    'has_content_update' => isset($arguments['content']),
-                    'append_mode' => $append,
-                    'position' => $position
+                    'new_title' => $newTitle
                 ]);
 
                 $article = Article::find($articleId);
                 if (!$article) {
-                    Log::warning('OpenAI Service: Article not found for editing', [
+                    Log::warning('OpenAI Service: Article not found for title editing', [
                         'article_id' => $articleId
                     ]);
                     return json_encode(['error' => 'Article not found']);
                 }
 
-                $changes = [];
+                $oldTitle = $article->title;
+                $article->title = $newTitle;
+                $article->save();
 
-                // Handle title update
-                if (isset($arguments['title'])) {
-                    $changes['title'] = ['from' => $article->title, 'to' => $arguments['title']];
-                    $article->title = $arguments['title'];
+                Log::info('OpenAI Service: Article title updated', [
+                    'article_id' => $articleId,
+                    'old_title' => $oldTitle,
+                    'new_title' => $newTitle
+                ]);
+
+                return json_encode([
+                    'success' => true,
+                    'message' => 'Article title updated successfully',
+                    'article_id' => $article->id,
+                    'old_title' => $oldTitle,
+                    'new_title' => $newTitle
+                ]);
+
+            case 'edit_article_content':
+                $articleId = $arguments['article_id'];
+                $content = $arguments['content'];
+                $mode = $arguments['mode'] ?? 'replace';
+
+                Log::debug('OpenAI Service: Editing article content', [
+                    'article_id' => $articleId,
+                    'mode' => $mode,
+                    'content_length' => strlen($content)
+                ]);
+
+                $article = Article::find($articleId);
+                if (!$article) {
+                    Log::warning('OpenAI Service: Article not found for content editing', [
+                        'article_id' => $articleId
+                    ]);
+                    return json_encode(['error' => 'Article not found']);
                 }
 
-                // Handle content update
-                if (isset($arguments['content'])) {
-                    $originalLength = strlen($article->content);
+                $originalLength = strlen($article->content);
+                $originalWordCount = str_word_count($article->content);
 
-                    if ($append) {
-                        // Append mode
-                        switch ($position) {
-                            case 'beginning':
-                                $article->content = $arguments['content'] . $article->content;
-                                break;
-                            case 'end':
-                            default:
-                                $article->content = $article->content . $arguments['content'];
-                                break;
-                        }
-
-                        $changes['content_appended'] = [
-                            'length_added' => strlen($arguments['content']),
-                            'position' => $position,
-                            'new_total_length' => strlen($article->content)
-                        ];
-
-                        Log::info('OpenAI Service: Content appended to article', [
-                            'article_id' => $articleId,
-                            'append_position' => $position,
-                            'content_added_length' => strlen($arguments['content']),
-                            'new_total_length' => strlen($article->content)
-                        ]);
-                    } else {
-                        // Replace mode (original behavior)
-                        $article->content = $arguments['content'];
-                        $changes['content_length'] = [
-                            'from' => $originalLength,
-                            'to' => strlen($arguments['content'])
-                        ];
-                    }
+                // Apply content based on mode
+                switch ($mode) {
+                    case 'append':
+                        $article->content = $article->content . $content;
+                        break;
+                    case 'prepend':
+                        $article->content = $content . $article->content;
+                        break;
+                    case 'replace':
+                    default:
+                        $article->content = $content;
+                        break;
                 }
 
                 $article->save();
 
-                Log::info('OpenAI Service: Article updated', [
+                $newLength = strlen($article->content);
+                $newWordCount = str_word_count($article->content);
+                $addedWords = str_word_count($content);
+
+                Log::info('OpenAI Service: Article content updated', [
                     'article_id' => $articleId,
-                    'changes' => $changes
+                    'mode' => $mode,
+                    'original_length' => $originalLength,
+                    'new_length' => $newLength,
+                    'content_added' => strlen($content),
+                    'words_added' => $addedWords
                 ]);
 
                 $response = [
                     'success' => true,
-                    'message' => $append ? 'Content appended successfully' : 'Article updated successfully',
-                    'article' => $article->toArray()
+                    'message' => $mode === 'replace' ?
+                        'Article content replaced successfully' :
+                        'Content ' . $mode . 'ed successfully',
+                    'article_id' => $article->id,
+                    'mode' => $mode,
+                    'progress' => [
+                        'total_words' => $newWordCount,
+                        'total_length' => $newLength,
+                        'chunk_words' => $addedWords,
+                        'chunk_length' => strlen($content)
+                    ]
                 ];
 
-                // Add progress information for chunked writing
-                if ($append && isset($arguments['content'])) {
-                    $wordCount = str_word_count($article->content);
-                    $response['progress'] = [
-                        'total_words' => $wordCount,
-                        'total_length' => strlen($article->content),
-                        'chunk_added' => strlen($arguments['content'])
-                    ];
+                if ($mode !== 'replace') {
+                    $response['progress']['previous_words'] = $originalWordCount;
+                    $response['progress']['previous_length'] = $originalLength;
                 }
 
                 return json_encode($response);
@@ -580,25 +609,36 @@ class OpenAIService
                 $page = $arguments['page'] ?? 1;
                 $perPage = $arguments['per_page'] ?? 20;
                 return "Listing articles (page {$page}, {$perPage} per page)...";
+
             case 'view_article':
                 $article = Article::find($arguments['article_id']);
                 $title = $article ? $article->title : 'Unknown';
                 return "Viewing article: \"{$title}\"...";
+
             case 'create_article':
                 return "Creating article: \"{$arguments['title']}\"...";
-            case 'edit_article':
+
+            case 'edit_article_title':
+                $article = Article::find($arguments['article_id']);
+                $currentTitle = $article ? $article->title : 'Unknown';
+                return "Changing title of \"{$currentTitle}\" to \"{$arguments['title']}\"...";
+
+            case 'edit_article_content':
                 $article = Article::find($arguments['article_id']);
                 $title = $article ? $article->title : 'Unknown';
-                $append = $arguments['append'] ?? false;
-                if ($append) {
-                    $position = $arguments['position'] ?? 'end';
-                    $contentLength = isset($arguments['content']) ? strlen($arguments['content']) : 0;
-                    $wordCount = isset($arguments['content']) ? str_word_count($arguments['content']) : 0;
-                    return "Appending ~{$wordCount} words to article \"{$title}\" at {$position}...";
+                $mode = $arguments['mode'] ?? 'replace';
+                $wordCount = str_word_count($arguments['content']);
+
+                if ($mode === 'replace') {
+                    return "Replacing content of article \"{$title}\" ({$wordCount} words)...";
+                } else {
+                    $action = $mode === 'append' ? 'Appending' : 'Prepending';
+                    return "{$action} {$wordCount} words to article \"{$title}\"...";
                 }
-                return "Editing article: \"{$title}\"...";
+
             case 'web_search':
                 return "Searching for: \"{$arguments['query']}\"";
+
             default:
                 return 'Executing tool...';
         }
