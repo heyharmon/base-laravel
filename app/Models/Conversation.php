@@ -9,7 +9,7 @@ class Conversation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'context'];
+    protected $fillable = ['title', 'context', 'openai_response_id'];
 
     protected $casts = [
         'context' => 'array',
