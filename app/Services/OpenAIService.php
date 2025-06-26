@@ -192,7 +192,7 @@ class OpenAIService
         $previous = $conversation->openai_response_id;
 
         return array_filter([
-            'model' => 'gpt-4o',
+            'model' => 'gpt-4.1',
             'instructions' => $instructions,
             'input' => $userMessage,
             'parallel_tool_calls' => true,
@@ -350,7 +350,7 @@ class OpenAIService
         if (!empty($toolOutputs)) {
             try {
                 $followUp = OpenAI::responses()->create([
-                    'model' => 'gpt-4o',
+                    'model' => 'gpt-4.1',
                     'previous_response_id' => $response->id,
                     'tools' => $this->tools,
                     'input' => $toolOutputs,
