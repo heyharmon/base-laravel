@@ -59,28 +59,12 @@ onMounted(() => {
 
 <template>
     <div class="flex h-screen bg-gray-100">
-        <!-- Sidebar -->
-        <div class="w-64 bg-white shadow-md">
-            <div class="p-4">
-                <h2 class="text-xl font-bold text-gray-800">Articles</h2>
-            </div>
-            <div class="overflow-y-auto max-h-[calc(100vh-5rem)]">
-                <div class="px-2 pb-4">
-                    <button
-                        v-for="article in articles"
-                        :key="article.id"
-                        @click="selectArticle(article)"
-                        :class="[
-                            'w-full text-left px-3 py-2 rounded-md mb-1 transition-colors',
-                            currentArticle?.id === article.id
-                                ? 'bg-blue-500 text-white'
-                                : 'hover:bg-gray-100 text-gray-700',
-                        ]"
-                    >
-                        {{ article.title }}
-                    </button>
-                </div>
-            </div>
+        <!-- Chat Panel -->
+        <div class="w-[28rem] border-r border-gray-200 bg-gray-50">
+            <ChatInterface
+                :current-article="currentArticle"
+                @response-received="handleResponseReceived"
+            />
         </div>
 
         <!-- Main Content -->
@@ -102,13 +86,29 @@ onMounted(() => {
                     </p>
                 </div>
             </div>
+        </div>
 
-            <!-- Chat Panel -->
-            <div class="w-96 border-l border-gray-200 bg-gray-50">
-                <ChatInterface
-                    :current-article="currentArticle"
-                    @response-received="handleResponseReceived"
-                />
+        <!-- Sidebar -->
+        <div class="w-64 bg-white shadow-md">
+            <div class="p-4">
+                <h2 class="text-xl font-bold text-gray-800">Articles</h2>
+            </div>
+            <div class="overflow-y-auto max-h-[calc(100vh-5rem)]">
+                <div class="px-2 pb-4">
+                    <button
+                        v-for="article in articles"
+                        :key="article.id"
+                        @click="selectArticle(article)"
+                        :class="[
+                            'w-full text-left px-3 py-2 rounded-md mb-1 transition-colors',
+                            currentArticle?.id === article.id
+                                ? 'bg-blue-500 text-white'
+                                : 'hover:bg-gray-100 text-gray-700',
+                        ]"
+                    >
+                        {{ article.title }}
+                    </button>
+                </div>
             </div>
         </div>
     </div>

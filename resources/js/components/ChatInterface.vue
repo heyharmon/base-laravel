@@ -191,9 +191,15 @@ watch(
             <div
                 class="flex justify-between items-center p-4 bg-white border-b border-gray-200"
             >
-                <h3 class="text-lg font-semibold text-gray-800">
-                    Conversation {{ conversationId }}
-                </h3>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        Conversation {{ conversationId }}
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        Ask agent to create, read, edit, plan,or research an
+                        article. Agent knows which article you are viewing.
+                    </p>
+                </div>
                 <button
                     @click="newConversation"
                     class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors"
@@ -217,7 +223,7 @@ watch(
                 >
                     <div
                         :class="[
-                            'max-w-[70%] rounded-lg px-4 py-2',
+                            'max-w-[90%] rounded-lg px-4 py-2',
                             chat.type === 'user'
                                 ? 'bg-blue-500 text-white'
                                 : chat.type === 'assistant'
