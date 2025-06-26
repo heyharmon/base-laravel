@@ -39,6 +39,9 @@ const loadLatestConversation = async () => {
             // No conversations exist, create a new one
             await createConversation();
         }
+
+        await nextTick();
+        scrollToBottom();
     } catch (error) {
         console.error("Error loading latest conversation:", error);
         // Fallback to creating a new conversation
@@ -202,7 +205,7 @@ watch(
                 </div>
                 <button
                     @click="newConversation"
-                    class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors"
+                    class="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors cursor-pointer"
                 >
                     New
                 </button>

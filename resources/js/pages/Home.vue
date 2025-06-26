@@ -52,6 +52,20 @@ const handleResponseReceived = async () => {
     }
 };
 
+const createNewArticle = async () => {
+    try {
+        const response = await api.post("/articles", {
+            title: "New Article",
+            content: "",
+        });
+
+        await loadArticles();
+        await selectArticle(response.data);
+    } catch (error) {
+        console.error("Error creating new article:", error);
+    }
+};
+
 onMounted(() => {
     loadArticles();
 });
@@ -75,9 +89,13 @@ onMounted(() => {
                     <h1 class="text-3xl font-bold text-gray-800 mb-6">
                         {{ currentArticle.title }}
                     </h1>
-                    <div
+                    <!-- <div
                         class="markdown-content text-gray-600 max-w-none"
                         v-html="parsedContent"
+                    ></div> -->
+                    <div
+                        class="markdown-content text-gray-600 max-w-none"
+                        v-html="currentArticle.content"
                     ></div>
                 </div>
                 <div v-else class="flex items-center justify-center h-full">
@@ -91,7 +109,15 @@ onMounted(() => {
         <!-- Sidebar -->
         <div class="w-64 bg-white shadow-md">
             <div class="p-4">
-                <h2 class="text-xl font-bold text-gray-800">Articles</h2>
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800">Articles</h2>
+                    <button
+                        @click="createNewArticle"
+                        class="px-3 py-1 border border-gray-300 text-gray-700 hover:bg-gray-100 cursor-pointer text-sm font-medium rounded-md transition-colors"
+                    >
+                        New
+                    </button>
+                </div>
             </div>
             <div class="overflow-y-auto max-h-[calc(100vh-5rem)]">
                 <div class="px-2 pb-4">

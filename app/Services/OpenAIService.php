@@ -85,7 +85,7 @@ class OpenAIService
         [
             'type' => 'function',
             'name' => 'edit_article_content',
-            'description' => 'Edit the content of an existing article. For long content, use multiple calls with append mode to write in chunks of ~200 words.',
+            'description' => 'Edit the content of an existing article. For long content, use multiple calls with append mode to write in chunks of ~200 words. Do not provide any article content in your responses.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -120,21 +120,6 @@ class OpenAIService
                 'required' => ['article_id', 'content']
             ]
         ],
-        // [
-        //     'type' => 'function',
-        //     'name' => 'web_search',
-        //     'description' => 'Search the web for information',
-        //     'parameters' => [
-        //         'type' => 'object',
-        //         'properties' => [
-        //             'query' => [
-        //                 'type' => 'string',
-        //                 'description' => 'The search query'
-        //             ]
-        //         ],
-        //         'required' => ['query']
-        //     ]
-        // ]
         ['type' => 'web_search']
     ];
 
@@ -222,11 +207,14 @@ class OpenAIService
 
     protected function composeSystemPrompt(Conversation $conversation): string
     {
-        $systemMessage = "You are a helpful assistant with access to articles in a database. \n";
+        $systemMessage = "You are a helpful assistant with access to articles in a database. You work both independently and collaboratively with a USER to write articles and complete related tasks. A task may require creating a new article, writing or editing an article, researching a topic, or simple answering a question. \n";
+        $systemMessage .= "The USER will send you requests. We will attach context about their current state, such as which article they are viewing. This information may or may not be relevant to the USER's request, it is up to you to decide. \n";
+        $systemMessage .= "Before calling each tool, first explain why you are calling it. Some tools run asynchronously, so you may not see their output immediately. After completing a task, do not over-explain what you did, provide a short synopsis. Here are examples of good tool call behavior: \n";
+        $systemMessage .= "USER: How many articles do we have? ASSISTANT: Let me check. [Call list_articles] TOOL: [tool message] ASSISTANT: You have 12 articles. USER: Create a new article about checking accounts. ASSISTANT: Let me create the article. [Call create_article with title=\"Checking Accounts\"] USER: Research the top checking account in Utah and start an article about it. ASSISTANT: Let me do some research. [Call web_search with query=\"top checking account in utah\"] [Call web_search with query=\"lowest rate checking account in utah\"] ASSISTANT: Digging deeper into the topic. [Call web_search with query=\"free checking account in utah\"] ASSISTANT: I found some great information. Now let me draft the article. [Call edit_article_title with article_id=\"1\" and title=\"Top Checking Accounts in Utah\"] TOOL: [tool message] [Call edit_article_content with article_id=\"1\" and content=\"...approximately 200 words...\" and mode=\"append\" ] TOOL: [tool message] [Call edit_article_content with article_id=\"1\" and content=\"...approximately 200 words...\" and mode=\"append\" ] TOOL: [tool message] ASSISTANT: I have finished writing the article. It is a draft that covers... \n";
         $systemMessage .= "When editing article content, use the edit_article_content function to write in chunks of approximately 200 words at a time. Use multiple tool calls to write more than approximately 200 words.";
-        $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the user. \n";
+        $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the USER. \n";
         $systemMessage .= "Use edit_article_title to change titles and edit_article_content to modify content. \n";
-        $systemMessage .= "Always write article content in markdown.";
+        $systemMessage .= "Always write article content in vanilla HTML using tags h1-h6, p, strong, em, br, ul, li and a.";
 
         if ($conversation->context) {
             $systemMessage .= "\n\nCurrent frontend context:\n";
@@ -624,6 +612,11 @@ class OpenAIService
 
             case 'create_article':
                 return "Creating article: \"{$arguments['title']}\"...";
+
+            case 'edit_article_title':
+                $article = Article::find($arguments['article_id']);
+                $title = $article ? $article->title : 'Unknown';
+                return "Editing title of article: \"{$title}\"...";
 
             case 'edit_article_content':
                 $article = Article::find($arguments['article_id']);

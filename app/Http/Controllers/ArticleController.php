@@ -27,7 +27,7 @@ class ArticleController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'content' => 'required|string'
+            'content' => 'nullable|string'
         ]);
 
         $article = Article::create($validated);
