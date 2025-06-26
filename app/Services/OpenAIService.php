@@ -243,10 +243,17 @@ class OpenAIService
         //     'item' => $item,
         // ]);
 
-        $conversation->chats()->create([
+        $chatData = [
             'type' => 'assistant',
             'content' => $item->content[0]->text ?? '',
-        ]);
+        ];
+
+        // Check for annotations in the response
+        if (isset($item->content[0]->annotations) && !empty($item->content[0]->annotations)) {
+            $chatData['annotations'] = $item->content[0]->annotations;
+        }
+
+        $conversation->chats()->create($chatData);
     }
 
     protected function handleReasoningMessage(Conversation $conversation, $item): void
