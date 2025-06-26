@@ -185,22 +185,25 @@ class OpenAIService
 
     protected function buildRequest(Conversation $conversation, string $userMessage): array
     {
+        // Instructions are a system message that are swappable, not carried over to next response.
         $instructions = $this->composeSystemPrompt($conversation);
+
+        // Previous response is maintains the conversation state in OpenAI.
         $previous = $conversation->openai_response_id;
 
         return array_filter([
             'model' => 'gpt-4o',
             'instructions' => $instructions,
             'input' => $userMessage,
+            'parallel_tool_calls' => true,
+            'previous_response_id' => $previous,
             'store' => true,
             'tools' => $this->tools,
             'tool_choice' => 'auto',
-            'parallel_tool_calls' => true,
             // 'reasoning' => [
-            //     'effort' => 'medium', // default
-            //     'summary' => 'auto'
+            //     'effort' => 'medium', // low, medium, high, defaults to medium. o-series models only
+            //     'summary' => 'auto' // null, auto, concise, detailed
             // ],
-            'previous_response_id' => $previous,
         ]);
     }
 
@@ -227,10 +230,6 @@ class OpenAIService
 
     protected function handleAssistantMessage(Conversation $conversation, $item): void
     {
-        // Log::info('OpenAI Service: Assistant message', [
-        //     'item' => $item,
-        // ]);
-
         $chatData = [
             'type' => 'assistant',
             'content' => $item->content[0]->text ?? '',
@@ -251,7 +250,7 @@ class OpenAIService
     protected function handleReasoningMessage(Conversation $conversation, $item): void
     {
         // Extract reasoning content - adjust based on the actual structure of $item
-        $reasoningContent = $item->content ?? $item->text ?? $item->reasoning ?? '';
+        // $reasoningContent = $item->content ?? $item->text ?? $item->reasoning ?? '';
 
         // Log the resoning content
         // Log::info('OpenAI Service: Reasoning message', [
