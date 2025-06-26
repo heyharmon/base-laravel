@@ -36,20 +36,25 @@ class ChatController extends Controller
 
     public function sendMessage(Request $request, Conversation $conversation)
     {
-        ini_set('max_execution_time', 60); // Sets the time limit to 60 seconds
-
         $request->validate([
             'message' => 'required|string'
         ]);
 
-        $chats = $this->openAIService->processMessage(
+        // Store user message immediately
+        $conversation->chats()->create([
+            'type' => 'user',
+            'content' => $request->input('message')
+        ]);
+
+        // Process message asynchronously
+        $this->openAIService->processMessageAsync(
             $conversation,
             $request->input('message')
         );
 
         return response()->json([
             'conversation' => $conversation->fresh(),
-            'chats' => $chats
+            'chats' => $conversation->chats
         ]);
     }
 

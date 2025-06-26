@@ -6,6 +6,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 use App\Models\Article;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 
 class OpenAIService
 {
@@ -159,6 +160,42 @@ class OpenAIService
 
         // Process the response
         return $this->processResponse($conversation, $response);
+    }
+
+    public function processMessageAsync(Conversation $conversation, string $userMessage)
+    {
+        Log::info('OpenAI Service: Processing message asynchronously', [
+            'conversation_id' => $conversation->id,
+            'message_length' => strlen($userMessage)
+        ]);
+
+        // Process in background
+        dispatch(function () use ($conversation, $userMessage) {
+            try {
+                // Build and send request
+                $request = $this->buildRequest($conversation, $userMessage);
+                $response = OpenAI::responses()->create($request);
+
+                Log::info('OpenAI Service: Received async response', [
+                    'conversation_id' => $conversation->id,
+                    'response' => $response,
+                ]);
+
+                // Process the response
+                $this->processResponse($conversation, $response);
+            } catch (\Exception $e) {
+                Log::error('OpenAI Service: Async processing failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage()
+                ]);
+                
+                // Create error message in chat
+                $conversation->chats()->create([
+                    'type' => 'assistant',
+                    'content' => 'Sorry, I encountered an error processing your message. Please try again.'
+                ]);
+            }
+        });
     }
 
     protected function buildRequest(Conversation $conversation, string $userMessage): array

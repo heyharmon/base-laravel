@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick, watch } from "vue";
+import { ref, onMounted, nextTick, watch, onUnmounted } from "vue";
 import api from "@/services/api";
 
 const emit = defineEmits(["responseReceived"]);
@@ -16,6 +16,7 @@ const chats = ref([]);
 const newMessage = ref("");
 const loading = ref(false);
 const messagesContainer = ref(null);
+const pollingInterval = ref(null);
 
 const loadLatestConversation = async () => {
     try {
@@ -71,6 +72,45 @@ const updateContext = async () => {
     });
 };
 
+const pollForUpdates = async () => {
+    if (!conversationId.value) return;
+
+    try {
+        const response = await api.get(
+            `/conversations/${conversationId.value}`
+        );
+        const newChats = response.data.chats || [];
+
+        if (newChats.length !== chats.value.length) {
+            chats.value = newChats;
+            await nextTick();
+            scrollToBottom();
+
+            // Check if assistant has finished responding
+            const lastChat = newChats[newChats.length - 1];
+            if (lastChat && lastChat.type === "assistant") {
+                stopPolling();
+                loading.value = false;
+                emit("responseReceived");
+            }
+        }
+    } catch (error) {
+        console.error("Error polling for updates:", error);
+    }
+};
+
+const startPolling = () => {
+    if (pollingInterval.value) return;
+    pollingInterval.value = setInterval(pollForUpdates, 1000);
+};
+
+const stopPolling = () => {
+    if (pollingInterval.value) {
+        clearInterval(pollingInterval.value);
+        pollingInterval.value = null;
+    }
+};
+
 const sendMessage = async () => {
     if (!newMessage.value.trim() || loading.value) return;
 
@@ -87,11 +127,12 @@ const sendMessage = async () => {
         chats.value = response.data.chats;
         await nextTick();
         scrollToBottom();
-        emit("responseReceived");
+
+        // Start polling for updates
+        startPolling();
     } catch (error) {
         console.error("Error sending message:", error);
         newMessage.value = message; // Restore message on error
-    } finally {
         loading.value = false;
     }
 };
@@ -124,6 +165,10 @@ const scrollToBottom = () => {
 
 onMounted(() => {
     loadLatestConversation();
+});
+
+onUnmounted(() => {
+    stopPolling();
 });
 
 watch(
