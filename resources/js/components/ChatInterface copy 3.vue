@@ -231,7 +231,8 @@ watch(
                     </h3>
                     <p class="text-sm text-gray-500">
                         Ask agent to create, read, edit, research or outline an
-                        article. Agent knows which article you are viewing.
+                        article. Agent knows which article you are viewing and
+                        the text you have selected.
                     </p>
                 </div>
                 <button
@@ -240,6 +241,42 @@ watch(
                 >
                     New
                 </button>
+            </div>
+
+            <!-- Context Indicators -->
+            <div
+                v-if="context.viewing_article_id || context.selected_content"
+                class="px-4 py-2 bg-blue-50 border-b border-blue-200"
+            >
+                <div class="text-xs text-blue-600 font-medium mb-1">
+                    Context:
+                </div>
+                <div
+                    v-if="context.viewing_article_id"
+                    class="text-xs text-blue-600 mb-1"
+                >
+                    📄 Viewing: {{ context.viewing_article_title }}
+                </div>
+                <div
+                    v-if="context.selected_content"
+                    class="flex items-start gap-2"
+                >
+                    <div class="text-xs text-blue-600 flex-1">
+                        ✨ Selected: "{{
+                            context.selected_content.length > 100
+                                ? context.selected_content.substring(0, 100) +
+                                  "..."
+                                : context.selected_content
+                        }}"
+                    </div>
+                    <button
+                        @click="clearSelectedContent"
+                        class="text-blue-400 hover:text-blue-600 text-xs"
+                        title="Clear selected content"
+                    >
+                        ✕
+                    </button>
+                </div>
             </div>
 
             <!-- Messages -->
@@ -349,37 +386,6 @@ watch(
                             ></div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Context Indicators -->
-            <div
-                v-if="context.viewing_article_id || context.selected_content"
-                class="px-4 py-2 flex flex-col gap-2 bg-blue-50 border-t border-blue-200"
-            >
-                <div
-                    v-if="context.viewing_article_id"
-                    class="text-sm text-blue-600"
-                >
-                    <span class="font-semibold">Viewing:</span>
-                    {{ context.viewing_article_title }}
-                </div>
-                <div v-if="context.selected_content" class="flex gap-2">
-                    <div class="text-sm text-blue-600">
-                        <span class="font-semibold">Selected:</span> "{{
-                            context.selected_content.length > 100
-                                ? context.selected_content.substring(0, 100) +
-                                  "..."
-                                : context.selected_content
-                        }}"
-                    </div>
-                    <button
-                        @click="clearSelectedContent"
-                        class="size-5 p-1 flex items-center justify-center bg-white border border-gray-200 rounded-md text-blue-400 hover:text-blue-600 text-sm cursor-pointer"
-                        title="Clear selected content"
-                    >
-                        ✕
-                    </button>
                 </div>
             </div>
 

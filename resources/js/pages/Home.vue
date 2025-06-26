@@ -129,11 +129,14 @@ const clearSelectedContent = () => {
 };
 
 const handleClickOutside = (event) => {
-    // Hide tooltip and clear visual selection if clicking outside of the tooltip or selected text
-    // But keep the persistent selectedContent intact
+    // Only clear current selection if clicking outside of:
+    // 1. The tooltip
+    // 2. The article content area
+    // 3. The entire chat interface area
     if (
         !event.target.closest(".add-to-chat-tooltip") &&
-        !event.target.closest(".article-content")
+        !event.target.closest(".article-content") &&
+        !event.target.closest(".chat-panel")
     ) {
         clearCurrentSelection();
     }
@@ -170,7 +173,7 @@ onUnmounted(() => {
 <template>
     <div class="flex h-screen bg-gray-100">
         <!-- Chat Panel -->
-        <div class="w-[28rem] border-r border-gray-200 bg-gray-50">
+        <div class="chat-panel w-[28rem] border-r border-gray-200 bg-gray-50">
             <ChatInterface
                 :current-article="currentArticle"
                 :selected-content="selectedContent"
@@ -183,12 +186,12 @@ onUnmounted(() => {
         <div class="flex-1 flex overflow-hidden relative">
             <!-- Article View -->
             <div class="flex-1 overflow-y-auto bg-white">
-                <div v-if="currentArticle" class="p-8">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-6">
+                <div v-if="currentArticle">
+                    <h1 class="text-3xl font-bold text-gray-800 py-6 p-8">
                         {{ currentArticle.title }}
                     </h1>
                     <div
-                        class="article-content markdown-content text-gray-600 max-w-none select-text cursor-text"
+                        class="article-content markdown-content text-gray-600 max-w-none select-text cursor-text px-8"
                         v-html="currentArticle.content"
                     ></div>
                 </div>
@@ -214,7 +217,7 @@ onUnmounted(() => {
                         @click="addSelectedToChat"
                         class="hover:bg-gray-700 px-2 py-1 rounded transition-colors"
                     >
-                        <span class="mr-1">📎</span> Add to chat
+                        📎 Add to chat
                     </button>
                     <button
                         @click="clearCurrentSelection"
@@ -225,7 +228,7 @@ onUnmounted(() => {
                     </button>
                     <!-- Tooltip arrow -->
                     <div
-                        class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-6 border-t-6 border-transparent border-t-black"
+                        class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black"
                     ></div>
                 </div>
             </Teleport>
