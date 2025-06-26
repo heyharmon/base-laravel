@@ -189,14 +189,14 @@ watch(
         <div class="flex-1 flex flex-col overflow-hidden">
             <!-- Header -->
             <div
-                class="flex justify-between items-center p-4 bg-white border-b border-gray-200"
+                class="flex justify-between items-start p-4 bg-white border-b border-gray-200"
             >
                 <div>
                     <h3 class="text-lg font-semibold text-gray-800">
                         Conversation {{ conversationId }}
                     </h3>
                     <p class="text-sm text-gray-500">
-                        Ask agent to create, read, edit, plan,or research an
+                        Ask agent to create, read, edit, research or outline an
                         article. Agent knows which article you are viewing.
                     </p>
                 </div>
@@ -258,7 +258,9 @@ watch(
                         </div>
                         <div
                             :class="[
-                                'whitespace-pre-wrap',
+                                chat.type === 'assistant'
+                                    ? 'markdown-content'
+                                    : '',
                                 chat.type === 'reasoning'
                                     ? 'text-purple-800 text-sm'
                                     : '',
