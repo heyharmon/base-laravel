@@ -6,6 +6,7 @@ use OpenAI\Laravel\Facades\OpenAI;
 use App\Models\Article;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 
 class OpenAIService
 {
@@ -119,21 +120,22 @@ class OpenAIService
                 'required' => ['article_id', 'content']
             ]
         ],
-        [
-            'type' => 'function',
-            'name' => 'web_search',
-            'description' => 'Search the web for information',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'query' => [
-                        'type' => 'string',
-                        'description' => 'The search query'
-                    ]
-                ],
-                'required' => ['query']
-            ]
-        ]
+        // [
+        //     'type' => 'function',
+        //     'name' => 'web_search',
+        //     'description' => 'Search the web for information',
+        //     'parameters' => [
+        //         'type' => 'object',
+        //         'properties' => [
+        //             'query' => [
+        //                 'type' => 'string',
+        //                 'description' => 'The search query'
+        //             ]
+        //         ],
+        //         'required' => ['query']
+        //     ]
+        // ]
+        ['type' => 'web_search']
     ];
 
     public function processMessage(Conversation $conversation, string $userMessage)
@@ -161,13 +163,49 @@ class OpenAIService
         return $this->processResponse($conversation, $response);
     }
 
+    public function processMessageAsync(Conversation $conversation, string $userMessage)
+    {
+        Log::info('OpenAI Service: Processing message asynchronously', [
+            'conversation_id' => $conversation->id,
+            'message_length' => strlen($userMessage)
+        ]);
+
+        // Process in background
+        dispatch(function () use ($conversation, $userMessage) {
+            try {
+                // Build and send request
+                $request = $this->buildRequest($conversation, $userMessage);
+                $response = OpenAI::responses()->create($request);
+
+                Log::info('OpenAI Service: Received async response', [
+                    'conversation_id' => $conversation->id,
+                    'response' => $response,
+                ]);
+
+                // Process the response
+                $this->processResponse($conversation, $response);
+            } catch (\Exception $e) {
+                Log::error('OpenAI Service: Async processing failed', [
+                    'conversation_id' => $conversation->id,
+                    'error' => $e->getMessage()
+                ]);
+
+                // Create error message in chat
+                $conversation->chats()->create([
+                    'type' => 'assistant',
+                    'content' => 'Sorry, I encountered an error processing your message. Please try again.'
+                ]);
+            }
+        });
+    }
+
     protected function buildRequest(Conversation $conversation, string $userMessage): array
     {
         $instructions = $this->composeSystemPrompt($conversation);
         $previous = $conversation->openai_response_id;
 
         return array_filter([
-            'model' => 'o4-mini-2025-04-16',
+            'model' => 'gpt-4o',
             'instructions' => $instructions,
             'input' => $userMessage,
             'store' => true,
@@ -206,10 +244,21 @@ class OpenAIService
         //     'item' => $item,
         // ]);
 
-        $conversation->chats()->create([
+        $chatData = [
             'type' => 'assistant',
             'content' => $item->content[0]->text ?? '',
-        ]);
+        ];
+
+        // Check for annotations in the response
+        if (isset($item->content[0]->annotations) && !empty($item->content[0]->annotations)) {
+            Log::info('OpenAI Service: Assistant message with annotations', [
+                'annotations' => $item->content[0]->annotations,
+            ]);
+
+            $chatData['annotations'] = $item->content[0]->annotations;
+        }
+
+        $conversation->chats()->create($chatData);
     }
 
     protected function handleReasoningMessage(Conversation $conversation, $item): void
@@ -253,7 +302,7 @@ class OpenAIService
                         'arguments' => $argumentsJson,
                     ],
                 ],
-                'result' => $result,
+                'result' => json_decode($result, true),
             ],
         ]);
 
@@ -315,7 +364,7 @@ class OpenAIService
         if (!empty($toolOutputs)) {
             try {
                 $followUp = OpenAI::responses()->create([
-                    'model' => 'o4-mini-2025-04-16',
+                    'model' => 'gpt-4o',
                     'previous_response_id' => $response->id,
                     'tools' => $this->tools,
                     'input' => $toolOutputs,
@@ -530,12 +579,12 @@ class OpenAIService
 
             case 'web_search':
                 // Placeholder implementation
-                return json_encode([
-                    'results' => [
-                        ['title' => 'Search result 1', 'snippet' => 'Content...'],
-                        ['title' => 'Search result 2', 'snippet' => 'Content...']
-                    ]
-                ]);
+                // return json_encode([
+                //     'results' => [
+                //         ['title' => 'Search result 1', 'snippet' => 'Content...'],
+                //         ['title' => 'Search result 2', 'snippet' => 'Content...']
+                //     ]
+                // ]);
 
             default:
                 return json_encode(['error' => 'Unknown tool']);

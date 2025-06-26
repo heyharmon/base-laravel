@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, nextTick, watch } from "vue";
+import { marked } from "marked";
+import { ref, onMounted, nextTick, watch, onUnmounted } from "vue";
 import api from "@/services/api";
 
 const emit = defineEmits(["responseReceived"]);
@@ -16,6 +17,11 @@ const chats = ref([]);
 const newMessage = ref("");
 const loading = ref(false);
 const messagesContainer = ref(null);
+const pollingInterval = ref(null);
+
+const renderMarkdown = (content) => {
+    return marked.parse(content || "");
+};
 
 const loadLatestConversation = async () => {
     try {
@@ -71,6 +77,45 @@ const updateContext = async () => {
     });
 };
 
+const pollForUpdates = async () => {
+    if (!conversationId.value) return;
+
+    try {
+        const response = await api.get(
+            `/conversations/${conversationId.value}`
+        );
+        const newChats = response.data.chats || [];
+
+        if (newChats.length !== chats.value.length) {
+            chats.value = newChats;
+            await nextTick();
+            scrollToBottom();
+
+            // Check if assistant has finished responding
+            const lastChat = newChats[newChats.length - 1];
+            if (lastChat && lastChat.type === "assistant") {
+                stopPolling();
+                loading.value = false;
+                emit("responseReceived");
+            }
+        }
+    } catch (error) {
+        console.error("Error polling for updates:", error);
+    }
+};
+
+const startPolling = () => {
+    if (pollingInterval.value) return;
+    pollingInterval.value = setInterval(pollForUpdates, 1000);
+};
+
+const stopPolling = () => {
+    if (pollingInterval.value) {
+        clearInterval(pollingInterval.value);
+        pollingInterval.value = null;
+    }
+};
+
 const sendMessage = async () => {
     if (!newMessage.value.trim() || loading.value) return;
 
@@ -87,11 +132,12 @@ const sendMessage = async () => {
         chats.value = response.data.chats;
         await nextTick();
         scrollToBottom();
-        emit("responseReceived");
+
+        // Start polling for updates
+        startPolling();
     } catch (error) {
         console.error("Error sending message:", error);
         newMessage.value = message; // Restore message on error
-    } finally {
         loading.value = false;
     }
 };
@@ -126,6 +172,10 @@ onMounted(() => {
     loadLatestConversation();
 });
 
+onUnmounted(() => {
+    stopPolling();
+});
+
 watch(
     () => props.currentArticle,
     () => {
@@ -141,9 +191,15 @@ watch(
             <div
                 class="flex justify-between items-center p-4 bg-white border-b border-gray-200"
             >
-                <h3 class="text-lg font-semibold text-gray-800">
-                    Conversation {{ conversationId }}
-                </h3>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        Conversation {{ conversationId }}
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        Ask agent to create, read, edit, plan,or research an
+                        article. Agent knows which article you are viewing.
+                    </p>
+                </div>
                 <button
                     @click="newConversation"
                     class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-md transition-colors"
@@ -167,7 +223,7 @@ watch(
                 >
                     <div
                         :class="[
-                            'max-w-[70%] rounded-lg px-4 py-2',
+                            'max-w-[90%] rounded-lg px-4 py-2',
                             chat.type === 'user'
                                 ? 'bg-blue-500 text-white'
                                 : chat.type === 'assistant'
@@ -207,8 +263,35 @@ watch(
                                     ? 'text-purple-800 text-sm'
                                     : '',
                             ]"
+                            v-html="renderMarkdown(chat.content)"
+                        ></div>
+
+                        <!-- Annotations section -->
+                        <div
+                            v-if="
+                                chat.annotations && chat.annotations.length > 0
+                            "
+                            class="mt-3 pt-3 border-t border-gray-200"
                         >
-                            {{ chat.content }}
+                            <div
+                                class="text-xs font-semibold text-gray-500 mb-2"
+                            >
+                                Sources:
+                            </div>
+                            <div class="space-y-1">
+                                <a
+                                    v-for="(
+                                        annotation, index
+                                    ) in chat.annotations"
+                                    :key="index"
+                                    :href="annotation.url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="block text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                    {{ annotation.title }}
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>

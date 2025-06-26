@@ -14,6 +14,7 @@ return new class extends Migration
             $table->enum('type', ['user', 'assistant', 'tool_call', 'reasoning']);
             $table->text('content');
             $table->json('metadata')->nullable(); // For tool call details
+            $table->json('annotations')->nullable(); // For web search annotations
             $table->timestamps();
         });
     }

@@ -9,10 +9,17 @@ class Chat extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['conversation_id', 'type', 'content', 'metadata'];
+    protected $fillable = [
+        'conversation_id',
+        'type',
+        'content',
+        'metadata',
+        'annotations'
+    ];
 
     protected $casts = [
         'metadata' => 'array',
+        'annotations' => 'array',
     ];
 
     public function conversation()
