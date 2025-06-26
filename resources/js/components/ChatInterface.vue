@@ -149,6 +149,8 @@ const sendMessage = async () => {
         );
 
         chats.value = response.data.chats;
+
+        // Scroll to bottom
         await nextTick();
         scrollToBottom();
 

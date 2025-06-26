@@ -77,7 +77,6 @@ const clearSelectedContent = () => {
 
 const handleSelectionAdded = (content) => {
     // Optional: Add any additional logic when content is added to chat
-    console.log("Content added to chat:", content);
 };
 
 onMounted(() => {

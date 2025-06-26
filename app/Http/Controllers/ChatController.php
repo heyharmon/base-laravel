@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Conversation;
-use App\Services\OpenAIService;
 use Illuminate\Http\Request;
+use App\Services\OpenAIService;
+use App\Models\Conversation;
 
 class ChatController extends Controller
 {
