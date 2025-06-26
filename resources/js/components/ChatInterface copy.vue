@@ -3,7 +3,7 @@ import { marked } from "marked";
 import { ref, onMounted, nextTick, watch, onUnmounted } from "vue";
 import api from "@/services/api";
 
-const emit = defineEmits(["responseReceived", "clearSelectedContent"]);
+const emit = defineEmits(["responseReceived"]);
 
 const props = defineProps({
     currentArticle: {
@@ -189,8 +189,8 @@ const scrollToBottom = () => {
 
 // Clear selected content
 const clearSelectedContent = () => {
-    // Emit to parent to clear the selectedContent prop
-    emit("clearSelectedContent");
+    context.value.selected_content = null;
+    updateContext();
 };
 
 onMounted(() => {

@@ -6,8 +6,7 @@ import { marked } from "marked";
 
 const articles = ref([]);
 const currentArticle = ref(null);
-const selectedContent = ref(null); // Persistent context content
-const currentSelection = ref(null); // Current visual selection
+const selectedContent = ref(null);
 const showAddToChatTooltip = ref(false);
 const tooltipPosition = ref({ x: 0, y: 0 });
 
@@ -84,7 +83,7 @@ const handleTextSelection = (event) => {
         const selectedText = selection.toString().trim();
 
         if (selectedText.length > 0) {
-            currentSelection.value = selectedText;
+            selectedContent.value = selectedText;
 
             // Get selection position for tooltip
             try {
@@ -101,41 +100,35 @@ const handleTextSelection = (event) => {
                 console.error("Error getting selection position:", error);
             }
         } else {
-            clearCurrentSelection();
+            clearSelectedContent();
         }
     }, 10); // Small delay to ensure selection is complete
 };
 
 const addSelectedToChat = () => {
-    if (!currentSelection.value) return;
+    if (!selectedContent.value) return;
 
-    // Move current selection to persistent context
-    selectedContent.value = currentSelection.value;
-
-    // Clear the visual selection and tooltip
-    clearCurrentSelection();
-};
-
-const clearCurrentSelection = () => {
+    // The selectedContent is already set and will be passed to ChatInterface
+    // which will trigger the watcher and update context
     showAddToChatTooltip.value = false;
-    currentSelection.value = null;
-    window.getSelection().removeAllRanges();
+
+    // Don't clear the selection here - let the user decide when to clear it
+    // window.getSelection().removeAllRanges();
 };
 
 const clearSelectedContent = () => {
-    // Clear both the persistent context and current selection
+    showAddToChatTooltip.value = false;
     selectedContent.value = null;
-    clearCurrentSelection();
+    window.getSelection().removeAllRanges();
 };
 
 const handleClickOutside = (event) => {
-    // Hide tooltip and clear visual selection if clicking outside of the tooltip or selected text
-    // But keep the persistent selectedContent intact
+    // Hide tooltip if clicking outside of the tooltip or selected text
     if (
         !event.target.closest(".add-to-chat-tooltip") &&
         !event.target.closest(".article-content")
     ) {
-        clearCurrentSelection();
+        clearSelectedContent();
     }
 };
 
@@ -145,9 +138,9 @@ const handleKeyUp = (event) => {
         handleTextSelection(event);
     }
 
-    // Clear current selection on Escape key
+    // Clear selection on Escape key
     if (event.key === "Escape") {
-        clearCurrentSelection();
+        clearSelectedContent();
     }
 };
 
@@ -175,7 +168,6 @@ onUnmounted(() => {
                 :current-article="currentArticle"
                 :selected-content="selectedContent"
                 @response-received="handleResponseReceived"
-                @clear-selected-content="clearSelectedContent"
             />
         </div>
 
@@ -183,12 +175,12 @@ onUnmounted(() => {
         <div class="flex-1 flex overflow-hidden relative">
             <!-- Article View -->
             <div class="flex-1 overflow-y-auto bg-white">
-                <div v-if="currentArticle" class="p-8">
-                    <h1 class="text-3xl font-bold text-gray-800 mb-6">
+                <div v-if="currentArticle">
+                    <h1 class="text-3xl font-bold text-gray-800 py-6 px-8">
                         {{ currentArticle.title }}
                     </h1>
                     <div
-                        class="article-content markdown-content text-gray-600 max-w-none select-text cursor-text"
+                        class="article-content markdown-content text-gray-600 max-w-none select-text cursor-text px-8"
                         v-html="currentArticle.content"
                     ></div>
                 </div>
@@ -202,7 +194,7 @@ onUnmounted(() => {
             <!-- Add to Chat Tooltip -->
             <Teleport to="body">
                 <div
-                    v-if="showAddToChatTooltip && currentSelection"
+                    v-if="showAddToChatTooltip && selectedContent"
                     class="add-to-chat-tooltip fixed z-50 bg-black text-white text-sm px-3 py-2 rounded-md shadow-lg pointer-events-auto"
                     :style="{
                         left: tooltipPosition.x + 'px',
@@ -214,10 +206,10 @@ onUnmounted(() => {
                         @click="addSelectedToChat"
                         class="hover:bg-gray-700 px-2 py-1 rounded transition-colors"
                     >
-                        <span class="mr-1">📎</span> Add to chat
+                        📎 Add to chat
                     </button>
                     <button
-                        @click="clearCurrentSelection"
+                        @click="clearSelectedContent"
                         class="hover:bg-gray-700 px-2 py-1 rounded ml-2 transition-colors"
                         title="Clear selection"
                     >
@@ -225,7 +217,7 @@ onUnmounted(() => {
                     </button>
                     <!-- Tooltip arrow -->
                     <div
-                        class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-6 border-t-6 border-transparent border-t-black"
+                        class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black"
                     ></div>
                 </div>
             </Teleport>

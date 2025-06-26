@@ -175,7 +175,6 @@ onUnmounted(() => {
                 :current-article="currentArticle"
                 :selected-content="selectedContent"
                 @response-received="handleResponseReceived"
-                @clear-selected-content="clearSelectedContent"
             />
         </div>
 
@@ -214,7 +213,7 @@ onUnmounted(() => {
                         @click="addSelectedToChat"
                         class="hover:bg-gray-700 px-2 py-1 rounded transition-colors"
                     >
-                        <span class="mr-1">📎</span> Add to chat
+                        📎 Add to chat
                     </button>
                     <button
                         @click="clearCurrentSelection"
@@ -225,7 +224,7 @@ onUnmounted(() => {
                     </button>
                     <!-- Tooltip arrow -->
                     <div
-                        class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-6 border-t-6 border-transparent border-t-black"
+                        class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black"
                     ></div>
                 </div>
             </Teleport>

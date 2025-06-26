@@ -3,7 +3,7 @@ import { marked } from "marked";
 import { ref, onMounted, nextTick, watch, onUnmounted } from "vue";
 import api from "@/services/api";
 
-const emit = defineEmits(["responseReceived", "clearSelectedContent"]);
+const emit = defineEmits(["responseReceived"]);
 
 const props = defineProps({
     currentArticle: {
@@ -75,6 +75,8 @@ const createConversation = async () => {
 };
 
 const updateContextFromProps = () => {
+    console.log("Updating context from props", props);
+
     if (props.currentArticle) {
         context.value.viewing_article_id = props.currentArticle.id;
         context.value.viewing_article_title = props.currentArticle.title;
@@ -189,8 +191,9 @@ const scrollToBottom = () => {
 
 // Clear selected content
 const clearSelectedContent = () => {
-    // Emit to parent to clear the selectedContent prop
-    emit("clearSelectedContent");
+    console.log("clearing selected content...");
+    context.value.selected_content = null;
+    updateContext();
 };
 
 onMounted(() => {
@@ -240,42 +243,6 @@ watch(
                 >
                     New
                 </button>
-            </div>
-
-            <!-- Context Indicators -->
-            <div
-                v-if="context.viewing_article_id || context.selected_content"
-                class="px-4 py-2 bg-blue-50 border-b border-blue-200"
-            >
-                <div class="text-xs text-blue-600 font-medium mb-1">
-                    Context:
-                </div>
-                <div
-                    v-if="context.viewing_article_id"
-                    class="text-xs text-blue-600 mb-1"
-                >
-                    📄 Viewing: {{ context.viewing_article_title }}
-                </div>
-                <div
-                    v-if="context.selected_content"
-                    class="flex items-start gap-2"
-                >
-                    <div class="text-xs text-blue-600 flex-1">
-                        ✨ Selected: "{{
-                            context.selected_content.length > 100
-                                ? context.selected_content.substring(0, 100) +
-                                  "..."
-                                : context.selected_content
-                        }}"
-                    </div>
-                    <button
-                        @click="clearSelectedContent"
-                        class="text-blue-400 hover:text-blue-600 text-xs"
-                        title="Clear selected content"
-                    >
-                        ✕
-                    </button>
-                </div>
             </div>
 
             <!-- Messages -->
@@ -385,6 +352,42 @@ watch(
                             ></div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Context Indicators -->
+            <div
+                v-if="context.viewing_article_id || context.selected_content"
+                class="px-4 py-2 bg-blue-50 border-b border-blue-200"
+            >
+                <div class="text-xs text-blue-600 font-medium mb-1">
+                    Context:
+                </div>
+                <div
+                    v-if="context.viewing_article_id"
+                    class="text-xs text-blue-600 mb-1"
+                >
+                    Viewing: {{ context.viewing_article_title }}
+                </div>
+                <div
+                    v-if="context.selected_content"
+                    class="flex items-start gap-2"
+                >
+                    <div class="text-xs text-blue-600 flex-1">
+                        Selected: "{{
+                            context.selected_content.length > 100
+                                ? context.selected_content.substring(0, 100) +
+                                  "..."
+                                : context.selected_content
+                        }}"
+                    </div>
+                    <button
+                        @click="clearSelectedContent"
+                        class="size-5 rounded-md bg-blue-100 text-blue-400 hover:text-blue-600 text-sm cursor-pointer"
+                        title="Clear selected content"
+                    >
+                        ✕
+                    </button>
                 </div>
             </div>
 
