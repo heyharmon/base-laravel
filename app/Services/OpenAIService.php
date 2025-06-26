@@ -154,8 +154,7 @@ class OpenAIService
         $response = OpenAI::responses()->create($request);
 
         Log::info('OpenAI Service: Received response', [
-            'conversation_id' => $conversation->id,
-            'status' => $response->status
+            'response' => $response,
         ]);
 
         // Process the response
@@ -171,9 +170,14 @@ class OpenAIService
             'model' => 'o4-mini-2025-04-16',
             'instructions' => $instructions,
             'input' => $userMessage,
+            'store' => true,
             'tools' => $this->tools,
             'tool_choice' => 'auto',
             'parallel_tool_calls' => true,
+            // 'reasoning' => [
+            //     'effort' => 'medium', // default
+            //     'summary' => 'auto'
+            // ],
             'previous_response_id' => $previous,
         ]);
     }
@@ -198,9 +202,30 @@ class OpenAIService
 
     protected function handleAssistantMessage(Conversation $conversation, $item): void
     {
+        // Log::info('OpenAI Service: Assistant message', [
+        //     'item' => $item,
+        // ]);
+
         $conversation->chats()->create([
             'type' => 'assistant',
             'content' => $item->content[0]->text ?? '',
+        ]);
+    }
+
+    protected function handleReasoningMessage(Conversation $conversation, $item): void
+    {
+        // Extract reasoning content - adjust based on the actual structure of $item
+        $reasoningContent = $item->content ?? $item->text ?? $item->reasoning ?? '';
+
+        // Log the resoning content
+        // Log::info('OpenAI Service: Reasoning message', [
+        //     'item' => $item,
+        // ]);
+
+        // You might want to format or summarize the reasoning here
+        $conversation->chats()->create([
+            'type' => 'reasoning',
+            'content' => '',
         ]);
     }
 
@@ -250,11 +275,11 @@ class OpenAIService
                 case 'message':
                     $this->handleAssistantMessage($conversation, $item);
                     break;
+                case 'reasoning':
+                    $this->handleReasoningMessage($conversation, $item);
+                    break;
                 case 'function_call':
                     $functionCalls[] = $item;
-                    break;
-                case 'reasoning':
-                    // OpenAI's internal reasoning - no action needed
                     break;
                 case 'web_search_call':
                     // Handled automatically by OpenAI

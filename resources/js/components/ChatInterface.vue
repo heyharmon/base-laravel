@@ -2,7 +2,7 @@
 import { ref, onMounted, nextTick, watch } from "vue";
 import api from "@/services/api";
 
-const emit = defineEmits(['responseReceived']);
+const emit = defineEmits(["responseReceived"]);
 
 const props = defineProps({
     currentArticle: {
@@ -87,7 +87,7 @@ const sendMessage = async () => {
         chats.value = response.data.chats;
         await nextTick();
         scrollToBottom();
-        emit('responseReceived');
+        emit("responseReceived");
     } catch (error) {
         console.error("Error sending message:", error);
         newMessage.value = message; // Restore message on error
@@ -106,6 +106,8 @@ const getRoleLabel = (type) => {
             return "You";
         case "assistant":
             return "Assistant";
+        case "reasoning":
+            return "Reasoning";
         case "tool_call":
             return "Tool";
         default:
@@ -170,20 +172,42 @@ watch(
                                 ? 'bg-blue-500 text-white'
                                 : chat.type === 'assistant'
                                 ? 'bg-white shadow-sm'
+                                : chat.type === 'reasoning'
+                                ? 'bg-purple-50 border border-purple-200 shadow-sm'
                                 : 'bg-gray-100 border-l-4 border-gray-400 italic',
                         ]"
                     >
                         <div
                             :class="[
-                                'text-xs font-semibold mb-1',
+                                'text-xs font-semibold mb-1 flex items-center gap-1',
                                 chat.type === 'user'
                                     ? 'text-blue-100'
+                                    : chat.type === 'reasoning'
+                                    ? 'text-purple-600'
                                     : 'text-gray-500',
                             ]"
                         >
+                            <!-- Thinking icon for reasoning -->
+                            <svg
+                                v-if="chat.type === 'reasoning'"
+                                class="w-3 h-3"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                            >
+                                <path
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                            </svg>
                             {{ getRoleLabel(chat.type) }}
                         </div>
-                        <div class="whitespace-pre-wrap">
+                        <div
+                            :class="[
+                                'whitespace-pre-wrap',
+                                chat.type === 'reasoning'
+                                    ? 'text-purple-800 text-sm'
+                                    : '',
+                            ]"
+                        >
                             {{ chat.content }}
                         </div>
                     </div>

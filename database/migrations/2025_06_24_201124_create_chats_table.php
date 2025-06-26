@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('chats', function (Blueprint $table) {
             $table->id();
             $table->foreignId('conversation_id')->constrained()->onDelete('cascade');
-            $table->enum('type', ['user', 'assistant', 'tool_call']);
+            $table->enum('type', ['user', 'assistant', 'tool_call', 'reasoning']);
             $table->text('content');
             $table->json('metadata')->nullable(); // For tool call details
             $table->timestamps();
