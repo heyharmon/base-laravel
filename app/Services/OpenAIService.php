@@ -6,7 +6,6 @@ use OpenAI\Laravel\Facades\OpenAI;
 use App\Models\Article;
 use App\Models\Conversation;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Queue;
 
 class OpenAIService
 {
@@ -566,13 +565,7 @@ class OpenAIService
                 return json_encode($response);
 
             case 'web_search':
-                // Placeholder implementation
-                // return json_encode([
-                //     'results' => [
-                //         ['title' => 'Search result 1', 'snippet' => 'Content...'],
-                //         ['title' => 'Search result 2', 'snippet' => 'Content...']
-                //     ]
-                // ]);
+                return; // Handled by OpenAI
 
             default:
                 return json_encode(['error' => 'Unknown tool']);
