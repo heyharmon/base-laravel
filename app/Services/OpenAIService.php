@@ -120,21 +120,22 @@ class OpenAIService
                 'required' => ['article_id', 'content']
             ]
         ],
-        [
-            'type' => 'function',
-            'name' => 'web_search',
-            'description' => 'Search the web for information',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'query' => [
-                        'type' => 'string',
-                        'description' => 'The search query'
-                    ]
-                ],
-                'required' => ['query']
-            ]
-        ]
+        // [
+        //     'type' => 'function',
+        //     'name' => 'web_search',
+        //     'description' => 'Search the web for information',
+        //     'parameters' => [
+        //         'type' => 'object',
+        //         'properties' => [
+        //             'query' => [
+        //                 'type' => 'string',
+        //                 'description' => 'The search query'
+        //             ]
+        //         ],
+        //         'required' => ['query']
+        //     ]
+        // ]
+        ['type' => 'web_search']
     ];
 
     public function processMessage(Conversation $conversation, string $userMessage)
@@ -188,7 +189,7 @@ class OpenAIService
                     'conversation_id' => $conversation->id,
                     'error' => $e->getMessage()
                 ]);
-                
+
                 // Create error message in chat
                 $conversation->chats()->create([
                     'type' => 'assistant',
@@ -204,7 +205,7 @@ class OpenAIService
         $previous = $conversation->openai_response_id;
 
         return array_filter([
-            'model' => 'o4-mini-2025-04-16',
+            'model' => 'gpt-4o',
             'instructions' => $instructions,
             'input' => $userMessage,
             'store' => true,
@@ -250,6 +251,10 @@ class OpenAIService
 
         // Check for annotations in the response
         if (isset($item->content[0]->annotations) && !empty($item->content[0]->annotations)) {
+            Log::info('OpenAI Service: Assistant message with annotations', [
+                'annotations' => $item->content[0]->annotations,
+            ]);
+
             $chatData['annotations'] = $item->content[0]->annotations;
         }
 
@@ -297,7 +302,7 @@ class OpenAIService
                         'arguments' => $argumentsJson,
                     ],
                 ],
-                'result' => $result,
+                'result' => json_decode($result, true),
             ],
         ]);
 
@@ -359,7 +364,7 @@ class OpenAIService
         if (!empty($toolOutputs)) {
             try {
                 $followUp = OpenAI::responses()->create([
-                    'model' => 'o4-mini-2025-04-16',
+                    'model' => 'gpt-4o',
                     'previous_response_id' => $response->id,
                     'tools' => $this->tools,
                     'input' => $toolOutputs,
@@ -574,12 +579,12 @@ class OpenAIService
 
             case 'web_search':
                 // Placeholder implementation
-                return json_encode([
-                    'results' => [
-                        ['title' => 'Search result 1', 'snippet' => 'Content...'],
-                        ['title' => 'Search result 2', 'snippet' => 'Content...']
-                    ]
-                ]);
+                // return json_encode([
+                //     'results' => [
+                //         ['title' => 'Search result 1', 'snippet' => 'Content...'],
+                //         ['title' => 'Search result 2', 'snippet' => 'Content...']
+                //     ]
+                // ]);
 
             default:
                 return json_encode(['error' => 'Unknown tool']);

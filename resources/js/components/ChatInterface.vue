@@ -1,4 +1,5 @@
 <script setup>
+import { marked } from "marked";
 import { ref, onMounted, nextTick, watch, onUnmounted } from "vue";
 import api from "@/services/api";
 
@@ -17,6 +18,10 @@ const newMessage = ref("");
 const loading = ref(false);
 const messagesContainer = ref(null);
 const pollingInterval = ref(null);
+
+const renderMarkdown = (content) => {
+    return marked.parse(content || "");
+};
 
 const loadLatestConversation = async () => {
     try {
@@ -252,8 +257,35 @@ watch(
                                     ? 'text-purple-800 text-sm'
                                     : '',
                             ]"
+                            v-html="renderMarkdown(chat.content)"
+                        ></div>
+
+                        <!-- Annotations section -->
+                        <div
+                            v-if="
+                                chat.annotations && chat.annotations.length > 0
+                            "
+                            class="mt-3 pt-3 border-t border-gray-200"
                         >
-                            {{ chat.content }}
+                            <div
+                                class="text-xs font-semibold text-gray-500 mb-2"
+                            >
+                                Sources:
+                            </div>
+                            <div class="space-y-1">
+                                <a
+                                    v-for="(
+                                        annotation, index
+                                    ) in chat.annotations"
+                                    :key="index"
+                                    :href="annotation.url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="block text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                    {{ annotation.title }}
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
