@@ -83,8 +83,8 @@ class OpenAIService
         ],
         [
             'type' => 'function',
-            'name' => 'edit_article_content',
-            'description' => 'Edit the content of an existing article. For long content, use multiple calls with append mode to write in chunks of ~200 words. Do not provide any article content in your responses.',
+            'name' => 'append_content',
+            'description' => 'Add content to the end of an article. Use this for building articles in chunks of ~200 words.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
@@ -94,29 +94,80 @@ class OpenAIService
                     ],
                     'content' => [
                         'type' => 'string',
-                        'description' => 'The new content to add or use for replacement'
-                    ],
-                    'mode' => [
-                        'type' => 'string',
-                        'enum' => ['replace', 'append', 'prepend', 'insert_at_marker'],
-                        'description' => 'How to apply the content: "replace" replaces specific text, "append" adds to the end, "prepend" adds to the beginning, "insert_at_marker" inserts at a position marker. Default is "append" for articles with content, "prepend" for empty articles.',
-                        'default' => 'auto'
-                    ],
-                    'search_text' => [
-                        'type' => 'string',
-                        'description' => 'For replace mode: the exact text to replace. If not provided with replace mode, will append to existing content.'
-                    ],
-                    'position_marker' => [
-                        'type' => 'string',
-                        'description' => 'For insert_at_marker mode: a marker/phrase indicating where to insert the content (e.g., "after the introduction", "before the conclusion")'
-                    ],
-                    'replace_all_occurrences' => [
-                        'type' => 'boolean',
-                        'description' => 'For replace mode: whether to replace all occurrences of search_text or just the first one. Default is false.',
-                        'default' => false
+                        'description' => 'Content to add to the end of the article. Always format content in vanilla HTML using tags h1-h6, p, strong, em, br, ul, li and a.'
                     ]
                 ],
                 'required' => ['article_id', 'content']
+            ]
+        ],
+        [
+            'type' => 'function',
+            'name' => 'prepend_content',
+            'description' => 'Add content to the beginning of an article',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'article_id' => [
+                        'type' => 'integer',
+                        'description' => 'The ID of the article to edit'
+                    ],
+                    'content' => [
+                        'type' => 'string',
+                        'description' => 'Content to add to the beginning of the article. Always format content in vanilla HTML using tags h1-h6, p, strong, em, br, ul, li and a.'
+                    ]
+                ],
+                'required' => ['article_id', 'content']
+            ]
+        ],
+        [
+            'type' => 'function',
+            'name' => 'replace_content',
+            'description' => 'Replace specific text in an article with new content',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'article_id' => [
+                        'type' => 'integer',
+                        'description' => 'The ID of the article to edit'
+                    ],
+                    'search_text' => [
+                        'type' => 'string',
+                        'description' => 'Exact text to find and replace'
+                    ],
+                    'replacement_text' => [
+                        'type' => 'string',
+                        'description' => 'New text to replace the found text with. Always format content in vanilla HTML using tags h1-h6, p, strong, em, br, ul, li and a.'
+                    ],
+                    'replace_all' => [
+                        'type' => 'boolean',
+                        'description' => 'Whether to replace all occurrences or just the first one',
+                        'default' => false
+                    ]
+                ],
+                'required' => ['article_id', 'search_text', 'replacement_text']
+            ]
+        ],
+        [
+            'type' => 'function',
+            'name' => 'insert_content',
+            'description' => 'Insert new content after a specific piece of text in an article',
+            'parameters' => [
+                'type' => 'object',
+                'properties' => [
+                    'article_id' => [
+                        'type' => 'integer',
+                        'description' => 'The ID of the article to edit'
+                    ],
+                    'after_text' => [
+                        'type' => 'string',
+                        'description' => 'Exact text to find - new content will be inserted after this text'
+                    ],
+                    'content' => [
+                        'type' => 'string',
+                        'description' => 'Content to insert after the found text'
+                    ]
+                ],
+                'required' => ['article_id', 'after_text', 'content']
             ]
         ],
         ['type' => 'web_search']
@@ -212,11 +263,10 @@ class OpenAIService
         $systemMessage = "You are a helpful assistant with access to articles in a database. You work both independently and collaboratively with a USER to write articles and complete related tasks. A task may require creating a new article, writing or editing an article, researching a topic, or simple answering a question. \n";
         $systemMessage .= "The USER will send you requests. We will attach context about their current state, such as which article they are viewing. This information may or may not be relevant to the USER's request, it is up to you to decide. \n";
         $systemMessage .= "Before calling each tool, first explain why you are calling it. Some tools run asynchronously, so you may not see their output immediately. After completing a task, do not over-explain what you did, provide a short synopsis. Here are examples of good tool call behavior: \n";
-        $systemMessage .= "USER: How many articles do we have? ASSISTANT: Let me check. [Call list_articles] TOOL: [tool message] ASSISTANT: You have 12 articles. USER: Create a new article about checking accounts. ASSISTANT: Let me create the article. [Call create_article with title=\"Checking Accounts\"] USER: Research the top checking account in Utah and start an article about it. ASSISTANT: Let me do some research. [Call web_search with query=\"top checking account in utah\"] [Call web_search with query=\"lowest rate checking account in utah\"] ASSISTANT: Digging deeper into the topic. [Call web_search with query=\"free checking account in utah\"] ASSISTANT: I found some great information. Now let me draft the article. [Call edit_article_title with article_id=\"1\" and title=\"Top Checking Accounts in Utah\"] TOOL: [tool message] [Call edit_article_content with article_id=\"1\" and content=\"...approximately 200 words...\" and mode=\"append\" ] TOOL: [tool message] [Call edit_article_content with article_id=\"1\" and content=\"...approximately 200 words...\" and mode=\"append\" ] TOOL: [tool message] ASSISTANT: I have finished writing the article. It is a draft that covers... \n";
-        $systemMessage .= "When editing article content, use the edit_article_content function to write in chunks of approximately 200 words at a time. Use multiple tool calls to write more than approximately 200 words.";
-        $systemMessage .= "using multiple edit_article_content calls with mode=\"append\". This provides faster feedback to the USER. \n";
-        $systemMessage .= "Use edit_article_title to change titles and edit_article_content to modify content. \n";
-        $systemMessage .= "Always write article content in vanilla HTML using tags h1-h6, p, strong, em, br, ul, li and a.";
+        $systemMessage .= "USER: How many articles do we have? ASSISTANT: Let me check. [Call list_articles] TOOL: [tool message] ASSISTANT: You have 12 articles. USER: Create a new article about checking accounts. ASSISTANT: Let me create the article. [Call create_article with title=\"Checking Accounts\"] USER: Research the top checking account in Utah and start an article about it. ASSISTANT: Let me do some research. [Call web_search with query=\"top checking account in utah\"] [Call web_search with query=\"lowest rate checking account in utah\"] ASSISTANT: Digging deeper into the topic. [Call web_search with query=\"free checking account in utah\"] ASSISTANT: I found some great information. Now let me draft the article. [Call edit_article_title with article_id=\"1\" and title=\"Top Checking Accounts in Utah\"] TOOL: [tool message] [Call append_content with article_id=\"1\" and content=\"...approximately 200 words...\" ] TOOL: [tool message] [Call append_content with article_id=\"1\" and content=\"...approximately 200 words...\" ] TOOL: [tool message] ASSISTANT: I have finished writing the article. It is a draft that covers... \n";
+        $systemMessage .= "When writing article content, use the append_content function to write in chunks of approximately 200 words at a time. Use multiple append_content calls to write more than approximately 200 words.";
+        $systemMessage .= "This provides faster feedback to the USER. \n";
+        $systemMessage .= "Use edit_article_title to change titles, append_content to add content to the end of articles, prepend_content to add content to the beginning, insert_content to add content after specific text, and replace_content to replace specific text. \n";
 
         if ($conversation->context) {
             $systemMessage .= "\n\nCurrent frontend context:\n";
@@ -427,141 +477,151 @@ class OpenAIService
                     'new_title' => $arguments['title']
                 ]);
 
-            case 'edit_article_content':
+            case 'append_content':
                 $article = Article::find($arguments['article_id']);
                 if (!$article) {
                     return json_encode(['error' => 'Article not found']);
                 }
 
-                $content = $arguments['content'];
-                $mode = $arguments['mode'] ?? 'auto';
-                $searchText = $arguments['search_text'] ?? null;
-                $positionMarker = $arguments['position_marker'] ?? null;
-                $replaceAll = $arguments['replace_all_occurrences'] ?? false;
+                $previousWordCount = str_word_count($article->content);
+                $previousLength = strlen($article->content);
 
-                $originalLength = strlen($article->content);
-                $originalWordCount = str_word_count($article->content);
+                $article->content .= $arguments['content'];
+                $article->save();
 
-                // Auto-determine mode
-                if ($mode === 'auto') {
-                    $mode = empty($article->content) ? 'prepend' : 'append';
+                $newWordCount = str_word_count($article->content);
+                $newLength = strlen($article->content);
+                $addedWords = str_word_count($arguments['content']);
+
+                return json_encode([
+                    'success' => true,
+                    'message' => 'Content appended successfully',
+                    'article_id' => $article->id,
+                    'progress' => [
+                        'total_words' => $newWordCount,
+                        'total_length' => $newLength,
+                        'previous_words' => $previousWordCount,
+                        'previous_length' => $previousLength,
+                        'chunk_words' => $addedWords,
+                        'chunk_length' => strlen($arguments['content'])
+                    ]
+                ]);
+
+            case 'prepend_content':
+                $article = Article::find($arguments['article_id']);
+                if (!$article) {
+                    return json_encode(['error' => 'Article not found']);
                 }
 
-                // Apply content based on mode
-                switch ($mode) {
-                    case 'replace':
-                        if ($searchText) {
-                            if ($replaceAll) {
-                                $article->content = str_replace($searchText, $content, $article->content);
-                                $occurrences = substr_count($article->content, $searchText);
-                            } else {
-                                $pos = strpos($article->content, $searchText);
-                                if ($pos !== false) {
-                                    $article->content = substr_replace($article->content, $content, $pos, strlen($searchText));
-                                    $occurrences = 1;
-                                } else {
-                                    $occurrences = 0;
-                                }
-                            }
-                            if ($occurrences === 0) {
-                                return json_encode(['error' => 'Search text not found in article']);
-                            }
-                        } else {
-                            $article->content = $article->content . $content;
-                            $mode = 'append';
-                        }
-                        break;
+                $previousWordCount = str_word_count($article->content);
+                $previousLength = strlen($article->content);
 
-                    case 'insert_at_marker':
-                        if (!$positionMarker) {
-                            return json_encode(['error' => 'Position marker required for insert_at_marker mode']);
-                        }
+                $article->content = $arguments['content'] . $article->content;
+                $article->save();
 
-                        $inserted = false;
-                        // Try common patterns
-                        if (preg_match('/after\s+(the\s+)?(.+)/i', $positionMarker, $matches)) {
-                            $searchPhrase = $matches[2];
-                            $pos = stripos($article->content, $searchPhrase);
-                            if ($pos !== false) {
-                                $endPos = $pos + strlen($searchPhrase);
-                                $nextPeriod = strpos($article->content, '.', $endPos);
-                                $nextNewline = strpos($article->content, "\n", $endPos);
-                                $insertPos = min(
-                                    $nextPeriod !== false ? $nextPeriod + 1 : PHP_INT_MAX,
-                                    $nextNewline !== false ? $nextNewline : PHP_INT_MAX
-                                );
-                                if ($insertPos === PHP_INT_MAX) $insertPos = strlen($article->content);
+                $newWordCount = str_word_count($article->content);
+                $newLength = strlen($article->content);
+                $addedWords = str_word_count($arguments['content']);
 
-                                $article->content = substr($article->content, 0, $insertPos) . ' ' . $content . substr($article->content, $insertPos);
-                                $inserted = true;
-                            }
-                        }
+                return json_encode([
+                    'success' => true,
+                    'message' => 'Content prepended successfully',
+                    'article_id' => $article->id,
+                    'progress' => [
+                        'total_words' => $newWordCount,
+                        'total_length' => $newLength,
+                        'previous_words' => $previousWordCount,
+                        'previous_length' => $previousLength,
+                        'chunk_words' => $addedWords,
+                        'chunk_length' => strlen($arguments['content'])
+                    ]
+                ]);
 
-                        if (!$inserted && preg_match('/before\s+(the\s+)?(.+)/i', $positionMarker, $matches)) {
-                            $searchPhrase = $matches[2];
-                            $pos = stripos($article->content, $searchPhrase);
-                            if ($pos !== false) {
-                                $article->content = substr($article->content, 0, $pos) . $content . ' ' . substr($article->content, $pos);
-                                $inserted = true;
-                            }
-                        }
+            case 'replace_content':
+                $article = Article::find($arguments['article_id']);
+                if (!$article) {
+                    return json_encode(['error' => 'Article not found']);
+                }
 
-                        // Try direct match
-                        if (!$inserted) {
-                            $pos = stripos($article->content, $positionMarker);
-                            if ($pos !== false) {
-                                $endPos = $pos + strlen($positionMarker);
-                                $article->content = substr($article->content, 0, $endPos) . ' ' . $content . substr($article->content, $endPos);
-                                $inserted = true;
-                            }
-                        }
+                $searchText = $arguments['search_text'];
+                $replacementText = $arguments['replacement_text'];
+                $replaceAll = $arguments['replace_all'] ?? false;
 
-                        if (!$inserted) {
-                            return json_encode(['error' => 'Could not find position marker in article']);
-                        }
-                        break;
+                // Check if search text exists
+                if (strpos($article->content, $searchText) === false) {
+                    return json_encode(['error' => 'Search text not found in article']);
+                }
 
-                    case 'append':
-                        $article->content = $article->content . $content;
-                        break;
+                $previousWordCount = str_word_count($article->content);
+                $previousLength = strlen($article->content);
 
-                    case 'prepend':
-                        $article->content = $content . $article->content;
-                        break;
-
-                    default:
-                        return json_encode(['error' => 'Invalid mode specified']);
+                if ($replaceAll) {
+                    $occurrences = substr_count($article->content, $searchText);
+                    $article->content = str_replace($searchText, $replacementText, $article->content);
+                } else {
+                    $pos = strpos($article->content, $searchText);
+                    $article->content = substr_replace($article->content, $replacementText, $pos, strlen($searchText));
+                    $occurrences = 1;
                 }
 
                 $article->save();
 
-                $newLength = strlen($article->content);
                 $newWordCount = str_word_count($article->content);
-                $addedWords = str_word_count($content);
+                $newLength = strlen($article->content);
 
-                $response = [
+                return json_encode([
                     'success' => true,
-                    'message' => $this->getEditSuccessMessage($mode, $searchText, $positionMarker),
+                    'message' => 'Content replaced successfully',
                     'article_id' => $article->id,
-                    'mode' => $mode,
+                    'replacements' => $occurrences,
                     'progress' => [
                         'total_words' => $newWordCount,
                         'total_length' => $newLength,
+                        'previous_words' => $previousWordCount,
+                        'previous_length' => $previousLength
+                    ]
+                ]);
+
+            case 'insert_content':
+                $article = Article::find($arguments['article_id']);
+                if (!$article) {
+                    return json_encode(['error' => 'Article not found']);
+                }
+
+                $afterText = $arguments['after_text'];
+                $content = $arguments['content'];
+
+                // Check if the text to insert after exists
+                $pos = strpos($article->content, $afterText);
+                if ($pos === false) {
+                    return json_encode(['error' => 'Target text not found in article']);
+                }
+
+                $previousWordCount = str_word_count($article->content);
+                $previousLength = strlen($article->content);
+
+                // Insert content after the found text
+                $insertPos = $pos + strlen($afterText);
+                $article->content = substr($article->content, 0, $insertPos) . $content . substr($article->content, $insertPos);
+                $article->save();
+
+                $newWordCount = str_word_count($article->content);
+                $newLength = strlen($article->content);
+                $addedWords = str_word_count($content);
+
+                return json_encode([
+                    'success' => true,
+                    'message' => 'Content inserted successfully',
+                    'article_id' => $article->id,
+                    'progress' => [
+                        'total_words' => $newWordCount,
+                        'total_length' => $newLength,
+                        'previous_words' => $previousWordCount,
+                        'previous_length' => $previousLength,
                         'chunk_words' => $addedWords,
                         'chunk_length' => strlen($content)
                     ]
-                ];
-
-                if ($mode === 'replace' && isset($occurrences)) {
-                    $response['replacements'] = $occurrences;
-                }
-
-                if ($mode !== 'replace' || !$searchText) {
-                    $response['progress']['previous_words'] = $originalWordCount;
-                    $response['progress']['previous_length'] = $originalLength;
-                }
-
-                return json_encode($response);
+                ]);
 
             case 'web_search':
                 return; // Handled by OpenAI
@@ -610,30 +670,35 @@ class OpenAIService
                 $title = $article ? $article->title : 'Unknown';
                 return "Editing title of article: \"{$title}\"...";
 
-            case 'edit_article_content':
+            case 'append_content':
                 $article = Article::find($arguments['article_id']);
                 $title = $article ? $article->title : 'Unknown';
-                $mode = $arguments['mode'] ?? 'auto';
                 $wordCount = str_word_count($arguments['content']);
+                return "Appending {$wordCount} words to article \"{$title}\"...";
 
-                if ($mode === 'auto') {
-                    $mode = ($article && empty($article->content)) ? 'prepend' : 'append';
-                }
+            case 'prepend_content':
+                $article = Article::find($arguments['article_id']);
+                $title = $article ? $article->title : 'Unknown';
+                $wordCount = str_word_count($arguments['content']);
+                return "Prepending {$wordCount} words to article \"{$title}\"...";
 
-                if ($mode === 'replace' && isset($arguments['search_text'])) {
-                    $searchPreview = strlen($arguments['search_text']) > 30 ?
-                        substr($arguments['search_text'], 0, 30) . '...' :
-                        $arguments['search_text'];
-                    return "Replacing \"{$searchPreview}\" in article \"{$title}\" ({$wordCount} words)...";
-                } elseif ($mode === 'insert_at_marker' && isset($arguments['position_marker'])) {
-                    return "Inserting {$wordCount} words at \"{$arguments['position_marker']}\" in article \"{$title}\"...";
-                } elseif ($mode === 'append') {
-                    return "Appending {$wordCount} words to article \"{$title}\"...";
-                } elseif ($mode === 'prepend') {
-                    return "Prepending {$wordCount} words to article \"{$title}\"...";
-                } else {
-                    return "Editing content of article \"{$title}\" ({$wordCount} words)...";
-                }
+            case 'replace_content':
+                $article = Article::find($arguments['article_id']);
+                $title = $article ? $article->title : 'Unknown';
+                $searchPreview = strlen($arguments['search_text']) > 30 ?
+                    substr($arguments['search_text'], 0, 30) . '...' :
+                    $arguments['search_text'];
+                $wordCount = str_word_count($arguments['replacement_text']);
+                return "Replacing \"{$searchPreview}\" with {$wordCount} words in article \"{$title}\"...";
+
+            case 'insert_content':
+                $article = Article::find($arguments['article_id']);
+                $title = $article ? $article->title : 'Unknown';
+                $afterTextPreview = strlen($arguments['after_text']) > 30 ?
+                    substr($arguments['after_text'], 0, 30) . '...' :
+                    $arguments['after_text'];
+                $wordCount = str_word_count($arguments['content']);
+                return "Inserting {$wordCount} words after \"{$afterTextPreview}\" in article \"{$title}\"...";
 
             case 'web_search':
                 return "Searching for: \"{$arguments['query']}\"";
