@@ -18,17 +18,7 @@ class ChatController extends Controller
     public function createConversation(Request $request)
     {
         $conversation = Conversation::create([
-            'title' => $request->input('title', 'New Conversation'),
-            'context' => $request->input('context', [])
-        ]);
-
-        return response()->json($conversation);
-    }
-
-    public function updateContext(Request $request, Conversation $conversation)
-    {
-        $conversation->update([
-            'context' => $request->input('context')
+            'title' => $request->input('title', 'New Conversation')
         ]);
 
         return response()->json($conversation);
@@ -37,7 +27,8 @@ class ChatController extends Controller
     public function sendMessage(Request $request, Conversation $conversation)
     {
         $request->validate([
-            'message' => 'required|string'
+            'message' => 'required|string',
+            'context' => 'sometimes|array'
         ]);
 
         // Store user message immediately
@@ -46,10 +37,11 @@ class ChatController extends Controller
             'content' => $request->input('message')
         ]);
 
-        // Process message asynchronously
+        // Process message asynchronously with context
         $this->openAIService->processMessageAsync(
             $conversation,
-            $request->input('message')
+            $request->input('message'),
+            $request->input('context', [])
         );
 
         return response()->json([

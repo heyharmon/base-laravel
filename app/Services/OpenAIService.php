@@ -173,11 +173,12 @@ class OpenAIService
         ['type' => 'web_search']
     ];
 
-    public function processMessage(Conversation $conversation, string $userMessage)
+    public function processMessage(Conversation $conversation, string $userMessage, array $context = [])
     {
         Log::info('OpenAI Service: Processing message', [
             'conversation_id' => $conversation->id,
-            'message_length' => strlen($userMessage)
+            'message_length' => strlen($userMessage),
+            'context' => $context
         ]);
 
         // Save user message
@@ -187,7 +188,7 @@ class OpenAIService
         ]);
 
         // Build and send request
-        $request = $this->buildRequest($conversation, $userMessage);
+        $request = $this->buildRequest($conversation, $userMessage, $context);
         $response = OpenAI::responses()->create($request);
 
         Log::info('OpenAI Service: Received response', [
@@ -198,18 +199,19 @@ class OpenAIService
         return $this->processResponse($conversation, $response);
     }
 
-    public function processMessageAsync(Conversation $conversation, string $userMessage)
+    public function processMessageAsync(Conversation $conversation, string $userMessage, array $context = [])
     {
         Log::info('OpenAI Service: Processing message asynchronously', [
             'conversation_id' => $conversation->id,
-            'message_length' => strlen($userMessage)
+            'message_length' => strlen($userMessage),
+            'context' => $context
         ]);
 
         // Process in background
-        dispatch(function () use ($conversation, $userMessage) {
+        dispatch(function () use ($conversation, $userMessage, $context) {
             try {
                 // Build and send request
-                $request = $this->buildRequest($conversation, $userMessage);
+                $request = $this->buildRequest($conversation, $userMessage, $context);
                 $response = OpenAI::responses()->create($request);
 
                 Log::info('OpenAI Service: Received async response', [
@@ -234,10 +236,10 @@ class OpenAIService
         });
     }
 
-    protected function buildRequest(Conversation $conversation, string $userMessage): array
+    protected function buildRequest(Conversation $conversation, string $userMessage, array $context = []): array
     {
         // Instructions are a system message that are swappable, not carried over to next response.
-        $instructions = $this->composeSystemPrompt($conversation);
+        $instructions = $this->composeSystemPrompt($conversation, $context);
 
         // Previous response is maintains the conversation state in OpenAI.
         $previous = $conversation->openai_response_id;
@@ -258,7 +260,7 @@ class OpenAIService
         ]);
     }
 
-    protected function composeSystemPrompt(Conversation $conversation): string
+    protected function composeSystemPrompt(Conversation $conversation, array $context = []): string
     {
         $systemMessage = "You are a helpful assistant with access to articles in a database. You work both independently and collaboratively with a USER to write articles and complete related tasks. A task may require creating a new article, writing or editing an article, researching a topic, or simple answering a question. \n";
         $systemMessage .= "The USER will send you requests. We will attach context about their current state, such as which article they are viewing. This information may or may not be relevant to the USER's request, it is up to you to decide. \n";
@@ -268,9 +270,10 @@ class OpenAIService
         $systemMessage .= "This provides faster feedback to the USER. \n";
         $systemMessage .= "Use edit_article_title to change titles, append_content to add content to the end of articles, prepend_content to add content to the beginning, insert_content to add content after specific text, and replace_content to replace specific text. \n";
 
-        if ($conversation->context) {
+        // Use the passed context
+        if (!empty($context)) {
             $systemMessage .= "\n\nCurrent frontend context:\n";
-            foreach ($conversation->context as $key => $value) {
+            foreach ($context as $key => $value) {
                 $systemMessage .= "- {$key}: {$value}\n";
             }
         }

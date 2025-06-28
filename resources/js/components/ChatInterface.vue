@@ -1,6 +1,6 @@
 <script setup>
 import { marked } from "marked";
-import { ref, onMounted, nextTick, watch, onUnmounted } from "vue";
+import { ref, onMounted, nextTick, onUnmounted, computed } from "vue";
 import api from "@/services/api";
 
 const emit = defineEmits(["responseReceived", "clearSelectedContent"]);
@@ -23,11 +23,13 @@ const loading = ref(false);
 const messagesContainer = ref(null);
 const pollingInterval = ref(null);
 
-// Context management as a reactive ref
-const context = ref({
-    viewing_article_id: null,
-    viewing_article_title: null,
-    selected_content: null,
+// Compute context from props instead of managing it as reactive state
+const context = computed(() => {
+    return {
+        viewing_article_id: props.currentArticle?.id || null,
+        viewing_article_title: props.currentArticle?.title || null,
+        selected_content: props.selectedContent || null,
+    };
 });
 
 const renderMarkdown = (content) => {
@@ -61,39 +63,13 @@ const loadLatestConversation = async () => {
 };
 
 const createConversation = async () => {
-    // Initialize context when creating conversation
-    updateContextFromProps();
-
     const response = await api.post("/conversations", {
         title: "New Chat",
-        context: context.value,
     });
     console.log("Create conversation", response);
 
     conversationId.value = response.data.id;
     chats.value = [];
-};
-
-const updateContextFromProps = () => {
-    if (props.currentArticle) {
-        context.value.viewing_article_id = props.currentArticle.id;
-        context.value.viewing_article_title = props.currentArticle.title;
-    } else {
-        context.value.viewing_article_id = null;
-        context.value.viewing_article_title = null;
-    }
-
-    context.value.selected_content = props.selectedContent || null;
-};
-
-const updateContext = async () => {
-    if (!conversationId.value) return;
-
-    updateContextFromProps();
-
-    await api.put(`/conversations/${conversationId.value}/context`, {
-        context: context.value,
-    });
 };
 
 const pollForUpdates = async () => {
@@ -143,9 +119,13 @@ const sendMessage = async () => {
     newMessage.value = "";
 
     try {
+        // Send message with current context
         const response = await api.post(
             `/conversations/${conversationId.value}/messages`,
-            { message }
+            {
+                message,
+                context: context.value, // Include context in each request
+            }
         );
 
         chats.value = response.data.chats;
@@ -202,22 +182,6 @@ onMounted(() => {
 onUnmounted(() => {
     stopPolling();
 });
-
-// Watch for changes in current article
-watch(
-    () => props.currentArticle,
-    () => {
-        updateContext();
-    }
-);
-
-// Watch for changes in selected content
-watch(
-    () => props.selectedContent,
-    () => {
-        updateContext();
-    }
-);
 </script>
 
 <template>
